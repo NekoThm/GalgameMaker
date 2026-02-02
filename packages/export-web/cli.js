@@ -1,11 +1,4 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { mkdir, readFile, writeFile, copyFile, readdir, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { compileProjectFromDir } from "../core/src/project-compiler.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { exportWeb } from "./exporter.js";
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -27,33 +20,6 @@ function parseArgs(argv) {
   return args;
 }
 
-async function ensureDir(dirPath) {
-  await mkdir(dirPath, { recursive: true });
-}
-
-async function copyDir(srcDir, dstDir) {
-  await ensureDir(dstDir);
-  const entries = await readdir(srcDir, { withFileTypes: true });
-  for (const entry of entries) {
-    const src = path.join(srcDir, entry.name);
-    const dst = path.join(dstDir, entry.name);
-    if (entry.isDirectory()) {
-      await copyDir(src, dst);
-      continue;
-    }
-    if (entry.isFile()) {
-      await ensureDir(path.dirname(dst));
-      await copyFile(src, dst);
-    }
-  }
-}
-
-async function writeJson(filePath, data) {
-  const text = JSON.stringify(data, null, 2) + "\n";
-  await ensureDir(path.dirname(filePath));
-  await writeFile(filePath, text, "utf-8");
-}
-
 async function main() {
   const args = parseArgs(process.argv);
   const projectArg = args.project ?? args.p;
@@ -64,50 +30,10 @@ async function main() {
     process.exit(1);
   }
 
-  const projectDir = path.resolve(process.cwd(), projectArg);
-  const outDir = path.resolve(process.cwd(), outArg);
-
-  if (!existsSync(projectDir)) {
-    console.error(`[export-web] project not found: ${projectDir}`);
-    process.exit(1);
-  }
-
-  const runtimePublic = path.resolve(__dirname, "..", "runtime-web", "public");
-  const { ir, manifest, diagnostics } = await compileProjectFromDir(projectDir);
-
-  // 先复制 runtime 静态文件
-  await copyDir(runtimePublic, outDir);
-
-  // 输出编译产物
-  await writeJson(path.join(outDir, "game.ir.json"), ir);
-  await writeJson(path.join(outDir, "manifest.json"), manifest);
-  await writeJson(path.join(outDir, "diagnostics.json"), diagnostics);
-
-  // 复制资源（保持相对路径）
-  for (const asset of manifest.assets) {
-    const rel = asset.path.replaceAll("\\", "/");
-    const src = path.join(projectDir, rel);
-    const dst = path.join(outDir, rel);
-    await ensureDir(path.dirname(dst));
-    await copyFile(src, dst);
-  }
-
-  // 写入一个构建标记，方便排查
-  const buildInfo = {
-    schemaVersion: 1,
-    builtAt: new Date().toISOString(),
+  const { outDir, ir, manifest } = await exportWeb({
     projectDir: projectArg,
     outDir: outArg
-  };
-  await writeJson(path.join(outDir, "build-info.json"), buildInfo);
-
-  // 额外检查：确保 index.html 存在（runtime 静态文件复制成功）
-  const indexPath = path.join(outDir, "index.html");
-  const indexStat = await stat(indexPath).catch(() => null);
-  if (!indexStat) {
-    console.error(`[export-web] missing index.html after copy: ${indexPath}`);
-    process.exit(1);
-  }
+  });
 
   console.log(`[export-web] OK -> ${outDir}`);
   console.log(`[export-web] Project: ${ir.project.title} (${ir.project.id})`);
@@ -125,4 +51,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

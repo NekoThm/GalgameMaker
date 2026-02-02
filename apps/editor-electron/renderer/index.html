@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galgame Editor (MVP)</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="toolbar">
+        <div class="toolbar-left">
+          <button id="btnOpen">打开项目</button>
+          <span id="projectPath" class="muted">未打开项目</span>
+        </div>
+        <div class="toolbar-right">
+          <button id="btnReload">重新加载</button>
+          <button id="btnFormat">格式化</button>
+          <button id="btnSave">保存图</button>
+          <button id="btnCompile">编译校验</button>
+          <button id="btnExport">导出 Web</button>
+          <button id="btnPreview">导出并预览</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="panel panel-left">
+          <div class="panel-title">场景列表</div>
+          <div id="sceneList" class="list"></div>
+          <div class="panel-title">导出目录</div>
+          <input id="outDir" class="input" placeholder="默认：<项目>/build/web" />
+          <button id="btnChooseOut" class="secondary">选择导出目录</button>
+          <div class="panel-title">诊断</div>
+          <div id="diagnostics" class="diagnostics"></div>
+        </aside>
+
+        <section class="panel panel-right">
+          <div class="panel-title">Graph JSON（当前场景）</div>
+          <textarea id="graphEditor" spellcheck="false" placeholder="打开项目并选择场景"></textarea>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status">就绪</span>
+      </footer>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
+

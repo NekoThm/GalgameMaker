@@ -10,7 +10,7 @@
   "scripts": {
     "build:web": "node \"packages/export-web/cli.js\" --project \"examples/MyGame\" --out \"dist/web\"",
     "serve:web": "node \"scripts/serve.js\" \"dist/web\" --port 5173",
-    "dev:web": "npm run build:web && npm run serve:web"
+    "dev:web": "npm run build:web && npm run serve:web",
+    "dev:editor": "npx electron \"apps/editor-electron\""
   }
 }
-

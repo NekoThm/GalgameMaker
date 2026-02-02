@@ -409,9 +409,39 @@ node "scripts/serve.js" "dist/web" --port 5173
 
 ## 17. 项目制作入口（当前阶段）
 
-当前阶段尚未实现 Electron 可视化编辑器（节点图 UI）。你可以先用 JSON 方式编写/生成节点图：
+当前阶段已提供 Electron 编辑器的最小可用版（以 JSON 编辑为主），可视化节点图 UI 仍未实现。你可以先用 JSON 方式编写/生成节点图：
 - 参考：`examples/MyGame/graphs/scene_001.graph.json`
 - 项目配置：`examples/MyGame/project.json`
 - 变量定义：`examples/MyGame/variables.json`
 
 后续实现 Editor 时，目标是“编辑器写 Graph，编译器产 IR，运行时读 IR”，三者职责不变。
+
+---
+
+## 18. Electron 编辑器（最小可用版）
+
+已提供一个 **最小可用的 Electron 编辑器**，当前能力定位为：
+- 打开项目目录（读取 `project.json`）
+- 选择场景并编辑 `Graph JSON`（文本编辑）
+- 一键编译校验（显示 diagnostics）
+- 一键导出 Web
+- 一键导出并本地预览（内置静态服务器）
+
+### 18.1 启动方式
+
+```bash
+npm install
+npm run dev:editor
+```
+
+启动后：
+- 点击「打开项目」选择 `examples/MyGame`
+- 在右侧编辑 Graph JSON
+- 点击「保存图」写回文件
+- 点击「编译校验」查看诊断
+- 点击「导出并预览」打开浏览器预览
+
+说明：
+- 该编辑器是 MVP 形态，尚未实现“可视化节点图”与“表单化 Inspector”
+- 后续阶段会替换为真正的节点图 UI，但编译器与运行时不需要改动
+- 请不要直接双击打开 `apps/editor-electron/renderer/index.html`，否则 `window.editorApi` 不会注入，按钮将不可用
