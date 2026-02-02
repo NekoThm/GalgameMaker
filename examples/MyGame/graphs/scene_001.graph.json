@@ -1,0 +1,205 @@
+{
+  "sceneMeta": {
+    "entryNodeId": "n_start"
+  },
+  "nodes": [
+    {
+      "id": "n_start",
+      "type": "Start",
+      "data": {}
+    },
+    {
+      "id": "n_bg_room",
+      "type": "Background",
+      "data": {
+        "background": "assets/bg/room.svg",
+        "transition": "cut",
+        "durationMs": 0
+      }
+    },
+    {
+      "id": "n_char_show",
+      "type": "Character",
+      "data": {
+        "action": "show",
+        "characterId": "heroine",
+        "renderer": "static",
+        "appearance": "assets/char/heroine.svg",
+        "position": {
+          "x": 0.62,
+          "y": 1.0,
+          "anchor": "bottom"
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "n_dlg_hello",
+      "type": "Dialogue",
+      "data": {
+        "speaker": "女主",
+        "text": "你好。\n这是一个 Web MVP 演示。"
+      }
+    },
+    {
+      "id": "n_choice_1",
+      "type": "Choice",
+      "data": {}
+    },
+    {
+      "id": "n_set_met",
+      "type": "SetVariable",
+      "data": {
+        "name": "metHeroine",
+        "op": "set",
+        "value": true
+      }
+    },
+    {
+      "id": "n_add_affection",
+      "type": "SetVariable",
+      "data": {
+        "name": "affection",
+        "op": "add",
+        "value": 1
+      }
+    },
+    {
+      "id": "n_branch_met",
+      "type": "Branch",
+      "data": {
+        "cond": {
+          "op": "truthy",
+          "var": "metHeroine"
+        }
+      }
+    },
+    {
+      "id": "n_dlg_nice",
+      "type": "Dialogue",
+      "data": {
+        "speaker": "女主",
+        "text": "你记得我呀。那我们继续吧。"
+      }
+    },
+    {
+      "id": "n_jump_good",
+      "type": "Jump",
+      "data": {
+        "targetLabel": "ending_good"
+      }
+    },
+    {
+      "id": "n_dlg_bad",
+      "type": "Dialogue",
+      "data": {
+        "speaker": "女主",
+        "text": "你不认识我吗？那就先到这里。"
+      }
+    },
+    {
+      "id": "n_end_bad",
+      "type": "End",
+      "data": {}
+    },
+    {
+      "id": "n_label_good",
+      "type": "Label",
+      "data": {
+        "name": "ending_good"
+      }
+    },
+    {
+      "id": "n_narr_end",
+      "type": "Narration",
+      "data": {
+        "text": "（示例 Good End）\n你获得了一个小小的结局。"
+      }
+    },
+    {
+      "id": "n_end_good",
+      "type": "End",
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_start_bg",
+      "from": { "nodeId": "n_start", "portId": "out" },
+      "to": { "nodeId": "n_bg_room", "portId": "in" }
+    },
+    {
+      "id": "e_bg_char",
+      "from": { "nodeId": "n_bg_room", "portId": "out" },
+      "to": { "nodeId": "n_char_show", "portId": "in" }
+    },
+    {
+      "id": "e_char_dlg",
+      "from": { "nodeId": "n_char_show", "portId": "out" },
+      "to": { "nodeId": "n_dlg_hello", "portId": "in" }
+    },
+    {
+      "id": "e_dlg_choice",
+      "from": { "nodeId": "n_dlg_hello", "portId": "out" },
+      "to": { "nodeId": "n_choice_1", "portId": "in" }
+    },
+    {
+      "id": "e_choice_yes",
+      "from": { "nodeId": "n_choice_1", "portId": "out" },
+      "to": { "nodeId": "n_set_met", "portId": "in" },
+      "data": { "text": "我记得你" }
+    },
+    {
+      "id": "e_choice_no",
+      "from": { "nodeId": "n_choice_1", "portId": "out" },
+      "to": { "nodeId": "n_dlg_bad", "portId": "in" },
+      "data": { "text": "我不认识你" }
+    },
+    {
+      "id": "e_set_add",
+      "from": { "nodeId": "n_set_met", "portId": "out" },
+      "to": { "nodeId": "n_add_affection", "portId": "in" }
+    },
+    {
+      "id": "e_add_branch",
+      "from": { "nodeId": "n_add_affection", "portId": "out" },
+      "to": { "nodeId": "n_branch_met", "portId": "in" }
+    },
+    {
+      "id": "e_branch_then",
+      "from": { "nodeId": "n_branch_met", "portId": "then" },
+      "to": { "nodeId": "n_dlg_nice", "portId": "in" }
+    },
+    {
+      "id": "e_branch_else",
+      "from": { "nodeId": "n_branch_met", "portId": "else" },
+      "to": { "nodeId": "n_dlg_bad", "portId": "in" }
+    },
+    {
+      "id": "e_nice_jump",
+      "from": { "nodeId": "n_dlg_nice", "portId": "out" },
+      "to": { "nodeId": "n_jump_good", "portId": "in" }
+    },
+    {
+      "id": "e_bad_end",
+      "from": { "nodeId": "n_dlg_bad", "portId": "out" },
+      "to": { "nodeId": "n_end_bad", "portId": "in" }
+    },
+    {
+      "id": "e_label_narr",
+      "from": { "nodeId": "n_label_good", "portId": "out" },
+      "to": { "nodeId": "n_narr_end", "portId": "in" }
+    },
+    {
+      "id": "e_jump_label",
+      "from": { "nodeId": "n_jump_good", "portId": "out" },
+      "to": { "nodeId": "n_label_good", "portId": "in" }
+    },
+    {
+      "id": "e_narr_end",
+      "from": { "nodeId": "n_narr_end", "portId": "out" },
+      "to": { "nodeId": "n_end_good", "portId": "in" }
+    }
+  ]
+}
+

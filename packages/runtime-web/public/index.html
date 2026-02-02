@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galgame Runtime</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <div id="bg"></div>
+        <div id="chars"></div>
+        <div id="fx"></div>
+        <div id="hud">
+          <div id="toast" aria-live="polite"></div>
+
+          <div id="textbox" role="button" tabindex="0" aria-label="继续">
+            <div id="name"></div>
+            <div id="text"></div>
+            <div id="hint">点击继续</div>
+          </div>
+
+          <div id="choices" aria-label="选项列表"></div>
+
+          <div id="controls" aria-label="控制栏">
+            <button id="btnBacklog" type="button">回看</button>
+            <button id="btnSave" type="button">存档</button>
+            <button id="btnLoad" type="button">读档</button>
+            <button id="btnAuto" type="button" aria-pressed="false">自动</button>
+            <button id="btnSkip" type="button" aria-pressed="false">快进(已读)</button>
+            <span id="status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="overlay" hidden>
+      <div id="overlayPanel">
+        <div id="overlayHeader">
+          <div id="overlayTitle"></div>
+          <button id="overlayClose" type="button">关闭</button>
+        </div>
+        <div id="overlayBody"></div>
+      </div>
+    </div>
+
+    <div id="tapToStart">
+      <div class="tapToStartPanel">
+        <div class="tapToStartTitle">点击开始</div>
+        <div class="tapToStartHint">iOS/macOS Safari 可能需要一次点击来解锁音频</div>
+      </div>
+    </div>
+
+    <script src="./runtime.js"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "@galgame/runtime-web",
+  "private": true,
+  "type": "module"
+}
+

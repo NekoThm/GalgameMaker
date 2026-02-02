@@ -1,0 +1,18 @@
+{
+  "id": "mygame-demo",
+  "title": "MyGame（MVP Demo）",
+  "resolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "entry": {
+    "sceneId": "scene_001"
+  },
+  "scenes": [
+    {
+      "id": "scene_001",
+      "graph": "graphs/scene_001.graph.json"
+    }
+  ]
+}
+

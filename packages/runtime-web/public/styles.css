@@ -1,0 +1,263 @@
+:root {
+  --stage-bg: #0b1020;
+  --ui-bg: rgba(10, 12, 20, 0.72);
+  --ui-border: rgba(255, 255, 255, 0.12);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.66);
+  --accent: #7aa2f7;
+  --danger: #ff5c77;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--stage-bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans", Arial, sans-serif;
+}
+
+#app {
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+#stage {
+  position: relative;
+  width: min(100vw, 1280px);
+  aspect-ratio: 16 / 9;
+  background: #111;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px var(--shadow);
+}
+
+#bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.05) contrast(1.02);
+}
+
+#chars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.char {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  will-change: transform, opacity;
+}
+
+.char img {
+  display: block;
+  max-height: 92%;
+  max-width: 60vw;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+}
+
+#hud {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 10px;
+  padding: 14px;
+}
+
+#toast {
+  justify-self: end;
+  align-self: start;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--ui-border);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+#toast.show {
+  opacity: 1;
+}
+
+#textbox {
+  align-self: end;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 12px 14px 10px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+
+#name {
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+#text {
+  font-size: 16px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+#hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+#choices {
+  display: grid;
+  gap: 8px;
+}
+
+.choice {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-border);
+  background: rgba(0, 0, 0, 0.48);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: rgba(122, 162, 247, 0.7);
+}
+
+#controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+#controls button {
+  background: rgba(0, 0, 0, 0.42);
+  color: var(--text);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#controls button[aria-pressed="true"] {
+  border-color: rgba(122, 162, 247, 0.8);
+  color: rgba(122, 162, 247, 1);
+}
+
+#status {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+#overlayPanel {
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(80vh, 680px);
+  background: rgba(14, 16, 26, 0.96);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+#overlayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+#overlayTitle {
+  font-weight: 600;
+}
+
+#overlayBody {
+  overflow: auto;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.backlogItem {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.backlogSpeaker {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.backlogText {
+  white-space: pre-wrap;
+}
+
+#tapToStart {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tapToStartPanel {
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 18px 18px 14px;
+  width: min(520px, calc(100vw - 28px));
+  background: rgba(14, 16, 26, 0.96);
+}
+
+.tapToStartTitle {
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.tapToStartHint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
