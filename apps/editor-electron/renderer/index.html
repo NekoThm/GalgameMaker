@@ -14,8 +14,9 @@
           <span id="projectPath" class="muted">未打开项目</span>
         </div>
         <div class="toolbar-right">
+          <button id="btnToggleLeft">侧边栏</button>
           <button id="btnReload">重新加载</button>
-          <button id="btnFormat">格式化</button>
+          <button id="btnFormat">适应视图</button>
           <button id="btnSave">保存图</button>
           <button id="btnCompile">编译校验</button>
           <button id="btnExport">导出 Web</button>
@@ -24,7 +25,7 @@
       </header>
 
       <main class="layout">
-        <aside class="panel panel-left">
+        <aside id="leftPanel" class="panel panel-left sidebar">
           <div class="panel-title">场景列表</div>
           <div id="sceneList" class="list"></div>
           <div class="panel-title">导出目录</div>
@@ -34,10 +35,19 @@
           <div id="diagnostics" class="diagnostics"></div>
         </aside>
 
-        <section class="panel panel-right">
-          <div class="panel-title">Graph JSON（当前场景）</div>
-          <textarea id="graphEditor" spellcheck="false" placeholder="打开项目并选择场景"></textarea>
+        <section class="graph-shell">
+          <div id="graphViewport">
+            <div id="graphCanvas">
+              <svg id="graphEdges"></svg>
+              <div id="graphNodes"></div>
+            </div>
+          </div>
         </section>
+
+        <aside id="rightPanel" class="panel panel-right inspector-panel">
+          <div class="panel-title">Inspector</div>
+          <div id="inspector" class="inspector"></div>
+        </aside>
       </main>
 
       <footer class="statusbar">
@@ -48,4 +58,3 @@
     <script src="./renderer.js"></script>
   </body>
 </html>
-

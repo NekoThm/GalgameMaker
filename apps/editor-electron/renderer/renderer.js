@@ -2,6 +2,7 @@ const api = window.editorApi ?? null;
 
 const els = {
   btnOpen: document.getElementById("btnOpen"),
+  btnToggleLeft: document.getElementById("btnToggleLeft"),
   btnReload: document.getElementById("btnReload"),
   btnFormat: document.getElementById("btnFormat"),
   btnSave: document.getElementById("btnSave"),
@@ -11,17 +12,117 @@ const els = {
   btnChooseOut: document.getElementById("btnChooseOut"),
   projectPath: document.getElementById("projectPath"),
   sceneList: document.getElementById("sceneList"),
-  graphEditor: document.getElementById("graphEditor"),
   diagnostics: document.getElementById("diagnostics"),
   outDir: document.getElementById("outDir"),
-  status: document.getElementById("status")
+  status: document.getElementById("status"),
+  graphViewport: document.getElementById("graphViewport"),
+  graphCanvas: document.getElementById("graphCanvas"),
+  graphEdges: document.getElementById("graphEdges"),
+  graphNodes: document.getElementById("graphNodes"),
+  inspector: document.getElementById("inspector"),
+  leftPanel: document.getElementById("leftPanel"),
+  rightPanel: document.getElementById("rightPanel")
 };
 
 const state = {
   projectDir: null,
   project: null,
+  variables: {},
   currentScene: null,
-  currentGraphPath: null
+  currentGraphPath: null,
+  currentLayoutPath: null,
+  graph: null,
+  layout: null,
+  selectedNodeId: null,
+  dirtyGraph: false,
+  dirtyLayout: false,
+  nodeElements: new Map(),
+  nodePorts: new Map(),
+  canvasOffset: { x: 0, y: 0 },
+  viewport: { x: 0, y: 0, zoom: 1 },
+  autoFit: true
+};
+
+const NODE_SCHEMA = {
+  Start: { label: "起点", fields: [] },
+  End: { label: "结局", fields: [] },
+  Dialogue: {
+    label: "对白",
+    fields: [
+      { key: "speaker", label: "角色名", type: "text" },
+      { key: "text", label: "文本", type: "textarea" },
+      { key: "voice", label: "语音资源", type: "path" }
+    ]
+  },
+  Narration: {
+    label: "旁白",
+    fields: [
+      { key: "text", label: "文本", type: "textarea" },
+      { key: "voice", label: "语音资源", type: "path" }
+    ]
+  },
+  Background: {
+    label: "背景",
+    fields: [
+      { key: "background", label: "背景资源", type: "path" },
+      {
+        key: "transition",
+        label: "切换方式",
+        type: "select",
+        options: [
+          { value: "cut", label: "切换" },
+          { value: "fade", label: "淡入淡出" }
+        ]
+      },
+      { key: "durationMs", label: "时长(ms)", type: "number" }
+    ]
+  },
+  Character: {
+    label: "立绘",
+    fields: [
+      { key: "action", label: "动作", type: "select", options: ["show", "hide"] },
+      { key: "characterId", label: "角色ID", type: "text" },
+      { key: "renderer", label: "渲染器", type: "select", options: ["static", "live2d"] },
+      { key: "appearance", label: "资源路径", type: "path" },
+      { key: "position.x", label: "位置X(0-1)", type: "number" },
+      { key: "position.y", label: "位置Y(0-1)", type: "number" },
+      { key: "scale", label: "缩放", type: "number" }
+    ]
+  },
+  Choice: { label: "选项", fields: [] },
+  Branch: { label: "条件分支", fields: [] },
+  SetVariable: { label: "变量设置", fields: [] },
+  Jump: { label: "跳转", fields: [{ key: "targetLabel", label: "目标标签", type: "label-select" }] },
+  Label: { label: "标签", fields: [{ key: "name", label: "标签名", type: "text" }] },
+  BGM: {
+    label: "BGM",
+    fields: [
+      { key: "audio", label: "音频资源", type: "path" },
+      { key: "action", label: "动作", type: "select", options: ["play", "stop"] },
+      { key: "volume", label: "音量(0-1)", type: "number" },
+      { key: "loop", label: "循环", type: "boolean" },
+      { key: "fadeMs", label: "淡入淡出(ms)", type: "number" }
+    ]
+  },
+  SFX: {
+    label: "音效",
+    fields: [
+      { key: "audio", label: "音频资源", type: "path" },
+      { key: "action", label: "动作", type: "select", options: ["play", "stop"] },
+      { key: "volume", label: "音量(0-1)", type: "number" },
+      { key: "fadeMs", label: "淡入淡出(ms)", type: "number" }
+    ]
+  },
+  Voice: {
+    label: "语音",
+    fields: [
+      { key: "audio", label: "音频资源", type: "path" },
+      { key: "action", label: "动作", type: "select", options: ["play", "stop"] },
+      { key: "volume", label: "音量(0-1)", type: "number" }
+    ]
+  },
+  Comment: { label: "注释", fields: [] },
+  Group: { label: "分组", fields: [] }
 };
 
 function setStatus(message, type = "info") {
@@ -61,6 +162,950 @@ function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
+function getNodeById(nodeId) {
+  if (!state.graph) return null;
+  return state.graph.nodes.find((n) => n.id === nodeId) ?? null;
+}
+
+function getLayoutNode(nodeId) {
+  if (!state.layout || !state.layout.nodes) return null;
+  return state.layout.nodes[nodeId] ?? null;
+}
+
+function setLayoutNode(nodeId, value) {
+  if (!state.layout.nodes) state.layout.nodes = {};
+  state.layout.nodes[nodeId] = value;
+  state.dirtyLayout = true;
+}
+
+function getByPath(obj, path) {
+  if (!obj) return undefined;
+  const parts = path.split(".");
+  let current = obj;
+  for (const p of parts) {
+    if (!current || typeof current !== "object") return undefined;
+    current = current[p];
+  }
+  return current;
+}
+
+function setByPath(obj, path, value) {
+  const parts = path.split(".");
+  let current = obj;
+  for (let i = 0; i < parts.length; i += 1) {
+    const p = parts[i];
+    if (i === parts.length - 1) {
+      current[p] = value;
+      return;
+    }
+    if (!current[p] || typeof current[p] !== "object") current[p] = {};
+    current = current[p];
+  }
+}
+
+function computeLayoutPath(graphRel) {
+  if (graphRel.endsWith(".graph.json")) return graphRel.replace(".graph.json", ".layout.json");
+  return `${graphRel}.layout.json`;
+}
+
+function summarizeNode(node) {
+  const type = node.type ?? "Unknown";
+  if (type === "Dialogue" || type === "Narration") {
+    const text = node.data?.text ?? "";
+    return text.length > 24 ? `${text.slice(0, 24)}…` : text;
+  }
+  if (type === "Background") return node.data?.background ?? "";
+  if (type === "Character") return `${node.data?.characterId ?? ""}`;
+  if (type === "Choice") return "选项";
+  if (type === "Branch") return "条件分支";
+  if (type === "SetVariable") return node.data?.name ?? "";
+  if (type === "Jump") return node.data?.targetLabel ?? "";
+  if (type === "Label") return node.data?.name ?? "";
+  return "";
+}
+
+function buildPortLayout(node) {
+  const type = node.type ?? "Unknown";
+  const outgoing = getOutgoingEdges(node.id);
+  const incoming = getIncomingEdges(node.id);
+
+  let inputCount = 0;
+  let outputPorts = [];
+
+  const hasInput = !["Start"].includes(type);
+  const hasOutput = !["End"].includes(type);
+
+  inputCount = hasInput ? Math.max(1, incoming.length || 1) : 0;
+
+  if (!hasOutput) {
+    outputPorts = [];
+  } else if (type === "Branch") {
+    outputPorts = [
+      { id: "then", label: "then" },
+      { id: "else", label: "else" }
+    ];
+  } else if (type === "Choice") {
+    outputPorts = outgoing.map((edge, index) => ({
+      id: edge?.from?.portId && edge.from.portId !== "out" ? edge.from.portId : `out-${index + 1}`,
+      label: edge?.data?.text ?? `选项${index + 1}`,
+      edgeId: edge.id
+    }));
+    if (outputPorts.length === 0) {
+      outputPorts = [{ id: "out-1", label: "选项1" }];
+    }
+  } else {
+    outputPorts = [{ id: "out", label: "" }];
+  }
+
+  const inputPorts = [];
+  for (let i = 0; i < inputCount; i += 1) {
+    inputPorts.push({ id: i === 0 ? "in" : `in-${i + 1}`, label: "" });
+  }
+
+  return { inputs: inputPorts, outputs: outputPorts };
+}
+
+function layoutPorts(nodeEl, ports) {
+  const height = nodeEl.offsetHeight || 80;
+  const width = nodeEl.offsetWidth || 180;
+
+  const apply = (list, direction) => {
+    const count = list.length;
+    list.forEach((port, index) => {
+      const el = port.el;
+      const ratio = (index + 1) / (count + 1);
+      const y = Math.max(8, Math.min(height - 8, height * ratio));
+      const x = direction === "in" ? 0 : width;
+      port.offsetX = x;
+      port.offsetY = y;
+      el.style.top = `${y - 5}px`;
+      if (direction === "in") el.style.left = `-6px`;
+      else el.style.right = `-6px`;
+    });
+  };
+
+  apply(ports.inputs, "in");
+  apply(ports.outputs, "out");
+}
+
+function applyTransform() {
+  const { x, y, zoom } = state.viewport;
+  els.graphCanvas.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
+  renderEdges();
+}
+
+function ensureLayoutForNodes() {
+  if (!state.layout.nodes) state.layout.nodes = {};
+  let index = 0;
+  for (const node of state.graph.nodes) {
+    if (!state.layout.nodes[node.id]) {
+      const x = 80 + (index % 6) * 260;
+      const y = 60 + Math.floor(index / 6) * 180;
+      state.layout.nodes[node.id] = { x, y };
+      index += 1;
+    }
+  }
+}
+
+function updateCanvasBounds() {
+  const positions = Object.values(state.layout.nodes ?? {});
+  if (positions.length === 0) {
+    state.canvasOffset = { x: 300, y: 220 };
+    els.graphCanvas.style.width = "1600px";
+    els.graphCanvas.style.height = "1000px";
+    return;
+  }
+
+  const defaultW = 200;
+  const defaultH = 90;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const pos of positions) {
+    const x = pos?.x ?? 0;
+    const y = pos?.y ?? 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + defaultW);
+    maxY = Math.max(maxY, y + defaultH);
+  }
+
+  const margin = 320;
+  const newOffset = { x: -minX + margin, y: -minY + margin };
+  const deltaX = newOffset.x - state.canvasOffset.x;
+  const deltaY = newOffset.y - state.canvasOffset.y;
+  if (deltaX !== 0 || deltaY !== 0) {
+    state.viewport.x -= deltaX * state.viewport.zoom;
+    state.viewport.y -= deltaY * state.viewport.zoom;
+    state.layout.viewport = { ...state.viewport };
+  }
+
+  state.canvasOffset = newOffset;
+  const width = Math.max(1200, maxX - minX + margin * 2);
+  const height = Math.max(800, maxY - minY + margin * 2);
+  els.graphCanvas.style.width = `${width}px`;
+  els.graphCanvas.style.height = `${height}px`;
+}
+
+function renderGraph() {
+  if (!state.graph || !state.layout) return;
+  ensureLayoutForNodes();
+  updateCanvasBounds();
+
+  els.graphNodes.innerHTML = "";
+  state.nodeElements.clear();
+  state.nodePorts.clear();
+
+  for (const node of state.graph.nodes) {
+    const pos = state.layout.nodes[node.id];
+    const nodeEl = document.createElement("div");
+    nodeEl.className = "node";
+    nodeEl.dataset.nodeId = node.id;
+    nodeEl.style.left = `${pos.x + state.canvasOffset.x}px`;
+    nodeEl.style.top = `${pos.y + state.canvasOffset.y}px`;
+
+    const title = document.createElement("div");
+    title.className = "node-title";
+    title.textContent = `${node.type ?? "Unknown"} · ${node.id}`;
+    const meta = document.createElement("div");
+    meta.className = "node-meta";
+    meta.textContent = summarizeNode(node);
+    nodeEl.appendChild(title);
+    nodeEl.appendChild(meta);
+
+    const ports = buildPortLayout(node);
+    for (const port of ports.inputs) {
+      const portEl = document.createElement("div");
+      portEl.className = "port port-in";
+      portEl.dataset.portId = port.id;
+      portEl.title = port.label || port.id;
+      nodeEl.appendChild(portEl);
+      port.el = portEl;
+    }
+    for (const port of ports.outputs) {
+      const portEl = document.createElement("div");
+      portEl.className = "port port-out";
+      portEl.dataset.portId = port.id;
+      portEl.title = port.label || port.id;
+      if (port.label) {
+        const label = document.createElement("span");
+        label.className = "port-label";
+        label.textContent = port.label;
+        portEl.appendChild(label);
+      }
+      nodeEl.appendChild(portEl);
+      port.el = portEl;
+    }
+
+    nodeEl.addEventListener("pointerdown", (e) => onNodePointerDown(e, node.id));
+    nodeEl.addEventListener("click", () => selectNode(node.id));
+
+    if (state.selectedNodeId === node.id) nodeEl.classList.add("selected");
+
+    els.graphNodes.appendChild(nodeEl);
+    state.nodeElements.set(node.id, nodeEl);
+    layoutPorts(nodeEl, ports);
+    state.nodePorts.set(node.id, ports);
+  }
+
+  renderEdges();
+  applyTransform();
+}
+
+function renderEdges() {
+  if (!state.graph) return;
+  const paths = [];
+  const selectedId = state.selectedNodeId;
+
+  for (const edge of state.graph.edges ?? []) {
+    const fromId = edge?.from?.nodeId;
+    const toId = edge?.to?.nodeId;
+    const fromPos = state.layout.nodes?.[fromId];
+    const toPos = state.layout.nodes?.[toId];
+    if (!fromPos || !toPos) continue;
+
+    const fromPorts = state.nodePorts.get(fromId);
+    const toPorts = state.nodePorts.get(toId);
+    if (!fromPorts || !toPorts) continue;
+
+    const fromPort = resolveOutputPort(fromPorts, edge);
+    const toPort = resolveInputPort(toPorts, edge);
+    if (!fromPort || !toPort) continue;
+
+    const x1 = fromPos.x + state.canvasOffset.x + (fromPort.offsetX ?? 0);
+    const y1 = fromPos.y + state.canvasOffset.y + (fromPort.offsetY ?? 0);
+    const x2 = toPos.x + state.canvasOffset.x + (toPort.offsetX ?? 0);
+    const y2 = toPos.y + state.canvasOffset.y + (toPort.offsetY ?? 0);
+
+    const dx = Math.max(60, Math.abs(x2 - x1) * 0.4);
+    const c1x = x1 + (x2 >= x1 ? dx : -dx);
+    const c2x = x2 - (x2 >= x1 ? dx : -dx);
+    const path = `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`;
+    const isFocus = selectedId && (edge.from.nodeId === selectedId || edge.to.nodeId === selectedId);
+    const color = isFocus ? "rgba(122,162,247,0.9)" : "rgba(255,255,255,0.12)";
+    const width = isFocus ? 2.2 : 1.2;
+    paths.push(`<path d="${path}" stroke="${color}" stroke-width="${width}" fill="none" marker-end="url(#arrow)" />`);
+  }
+
+  const defs = `<defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.6)"></path>
+    </marker>
+  </defs>`;
+  els.graphEdges.innerHTML = defs + paths.join("");
+}
+
+let dragState = null;
+let panState = null;
+
+function onNodePointerDown(event, nodeId) {
+  const nodeEl = state.nodeElements.get(nodeId);
+  if (!nodeEl) return;
+  const pointer = screenToGraph(event.clientX, event.clientY);
+  const pos = state.layout.nodes[nodeId];
+  dragState = {
+    nodeId,
+    offsetX: pointer.x - pos.x,
+    offsetY: pointer.y - pos.y,
+    moved: false
+  };
+  selectNode(nodeId);
+  nodeEl.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}
+
+function onPointerMove(event) {
+  if (!dragState) return;
+  const pointer = screenToGraph(event.clientX, event.clientY);
+  const x = pointer.x - dragState.offsetX;
+  const y = pointer.y - dragState.offsetY;
+  setLayoutNode(dragState.nodeId, { x, y });
+  const nodeEl = state.nodeElements.get(dragState.nodeId);
+  if (nodeEl) {
+    nodeEl.style.left = `${x + state.canvasOffset.x}px`;
+    nodeEl.style.top = `${y + state.canvasOffset.y}px`;
+  }
+  dragState.moved = true;
+  state.autoFit = false;
+  renderEdges();
+}
+
+function onPointerUp() {
+  if (dragState) {
+    const moved = dragState.moved;
+    dragState = null;
+    if (moved) {
+      updateCanvasBounds();
+      renderGraph();
+      if (state.selectedNodeId) selectNode(state.selectedNodeId);
+    }
+  }
+  if (panState) {
+    panState = null;
+  }
+}
+
+document.addEventListener("pointermove", onPointerMove);
+document.addEventListener("pointerup", onPointerUp);
+
+function screenToGraph(clientX, clientY) {
+  const rect = els.graphViewport.getBoundingClientRect();
+  const { x, y, zoom } = state.viewport;
+  return {
+    x: (clientX - rect.left - x) / zoom - state.canvasOffset.x,
+    y: (clientY - rect.top - y) / zoom - state.canvasOffset.y
+  };
+}
+
+function onViewportPointerDown(event) {
+  if (event.button !== 0) return;
+  if (
+    event.target !== els.graphViewport &&
+    event.target !== els.graphCanvas &&
+    event.target !== els.graphEdges &&
+    event.target !== els.graphNodes
+  )
+    return;
+  panState = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: state.viewport.x,
+    originY: state.viewport.y
+  };
+}
+
+function onViewportPointerMove(event) {
+  if (!panState) return;
+  const dx = event.clientX - panState.startX;
+  const dy = event.clientY - panState.startY;
+  state.viewport.x = panState.originX + dx;
+  state.viewport.y = panState.originY + dy;
+  state.layout.viewport = { ...state.viewport };
+  state.dirtyLayout = true;
+  state.autoFit = false;
+  applyTransform();
+}
+
+function onViewportWheel(event) {
+  event.preventDefault();
+  const rect = els.graphViewport.getBoundingClientRect();
+  const cursorX = event.clientX - rect.left;
+  const cursorY = event.clientY - rect.top;
+  const prevZoom = state.viewport.zoom;
+  const delta = event.deltaY > 0 ? 0.9 : 1.1;
+  const nextZoom = Math.max(0.2, Math.min(3, prevZoom * delta));
+  if (nextZoom === prevZoom) return;
+  const offsetX = state.viewport.x;
+  const offsetY = state.viewport.y;
+  const newOffsetX = cursorX - ((cursorX - offsetX) / prevZoom) * nextZoom;
+  const newOffsetY = cursorY - ((cursorY - offsetY) / prevZoom) * nextZoom;
+  state.viewport = { x: newOffsetX, y: newOffsetY, zoom: nextZoom };
+  state.layout.viewport = { ...state.viewport };
+  state.dirtyLayout = true;
+  state.autoFit = false;
+  applyTransform();
+}
+
+function selectNode(nodeId) {
+  state.selectedNodeId = nodeId;
+  for (const [id, el] of state.nodeElements.entries()) {
+    if (id === nodeId) el.classList.add("selected");
+    else el.classList.remove("selected");
+  }
+  renderEdges();
+  renderInspector(nodeId);
+}
+
+function renderInspector(nodeId) {
+  els.inspector.innerHTML = "";
+  if (!nodeId) {
+    els.inspector.innerHTML = "<div class=\"muted\">选择一个节点以编辑</div>";
+    if (els.rightPanel) els.rightPanel.classList.remove("open");
+    return;
+  }
+  if (els.rightPanel) els.rightPanel.classList.add("open");
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  if (!node.data) node.data = {};
+
+  const schema = NODE_SCHEMA[node.type] ?? { label: node.type ?? "节点", fields: [] };
+
+  const header = document.createElement("div");
+  header.className = "inspector-group";
+  header.innerHTML = `<div class="inspector-label">节点</div><div>${escapeHtml(schema.label)} · ${escapeHtml(node.id)}</div>`;
+  els.inspector.appendChild(header);
+
+  for (const field of schema.fields) {
+    els.inspector.appendChild(createField(node, field));
+  }
+
+  if (node.type === "SetVariable") {
+    els.inspector.appendChild(createVariableSection(node));
+  }
+
+  if (node.type === "Branch") {
+    els.inspector.appendChild(createBranchSection(node));
+  }
+
+  if (node.type === "Choice") {
+    els.inspector.appendChild(createChoiceSection(node));
+  }
+
+  if (!["End", "Choice", "Branch"].includes(node.type)) {
+    els.inspector.appendChild(createNextSection(node));
+  }
+
+  els.inspector.appendChild(createLayoutSection(nodeId));
+}
+
+function createGroup(labelText) {
+  const group = document.createElement("div");
+  group.className = "inspector-group";
+  if (labelText) {
+    const label = document.createElement("div");
+    label.className = "inspector-label";
+    label.textContent = labelText;
+    group.appendChild(label);
+  }
+  return group;
+}
+
+function createField(node, field) {
+  const group = createGroup(field.label);
+  const value = getByPath(node.data, field.key);
+
+  if (field.type === "textarea") {
+    const textarea = document.createElement("textarea");
+    textarea.className = "inspector-textarea";
+    textarea.value = value ?? "";
+    textarea.addEventListener("input", () => {
+      setByPath(node.data, field.key, textarea.value);
+      state.dirtyGraph = true;
+      updateNodeSummary(node.id);
+    });
+    group.appendChild(textarea);
+    return group;
+  }
+
+  if (field.type === "select") {
+    const select = document.createElement("select");
+    select.className = "inspector-select";
+    const options = Array.isArray(field.options)
+      ? field.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o))
+      : [];
+    for (const opt of options) {
+      const option = document.createElement("option");
+      option.value = opt.value;
+      option.textContent = opt.label ?? opt.value;
+      select.appendChild(option);
+    }
+    select.value = value ?? options[0]?.value ?? "";
+    select.addEventListener("change", () => {
+      setByPath(node.data, field.key, select.value);
+      state.dirtyGraph = true;
+      updateNodeSummary(node.id);
+    });
+    group.appendChild(select);
+    return group;
+  }
+
+  if (field.type === "boolean") {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(value);
+    input.addEventListener("change", () => {
+      setByPath(node.data, field.key, input.checked);
+      state.dirtyGraph = true;
+    });
+    group.appendChild(input);
+    return group;
+  }
+
+  if (field.type === "label-select") {
+    const select = document.createElement("select");
+    select.className = "inspector-select";
+    const labels = state.graph.nodes.filter((n) => n.type === "Label").map((n) => n.data?.name).filter(Boolean);
+    for (const name of labels) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    }
+    select.value = value ?? "";
+    select.addEventListener("change", () => {
+      setByPath(node.data, field.key, select.value);
+      state.dirtyGraph = true;
+      updateNodeSummary(node.id);
+    });
+    group.appendChild(select);
+    return group;
+  }
+
+  const input = document.createElement("input");
+  input.className = "inspector-input";
+  input.type = field.type === "number" ? "number" : "text";
+  input.value = value ?? "";
+  input.addEventListener("input", () => {
+    const v = field.type === "number" ? Number(input.value) : input.value;
+    setByPath(node.data, field.key, Number.isNaN(v) ? 0 : v);
+    state.dirtyGraph = true;
+    updateNodeSummary(node.id);
+  });
+  group.appendChild(input);
+  return group;
+}
+
+function createVariableSection(node) {
+  const group = createGroup("变量设置");
+  const names = Object.keys(state.variables ?? {});
+  const varSelect = document.createElement("select");
+  varSelect.className = "inspector-select";
+  for (const name of names) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    varSelect.appendChild(option);
+  }
+  varSelect.value = node.data?.name ?? "";
+  varSelect.addEventListener("change", () => {
+    node.data.name = varSelect.value;
+    node.data.value = getDefaultValueForVariable(varSelect.value);
+    state.dirtyGraph = true;
+    renderInspector(node.id);
+  });
+
+  const opSelect = document.createElement("select");
+  opSelect.className = "inspector-select";
+  ["set", "add"].forEach((op) => {
+    const option = document.createElement("option");
+    option.value = op;
+    option.textContent = op;
+    opSelect.appendChild(option);
+  });
+  opSelect.value = node.data?.op ?? "set";
+  opSelect.addEventListener("change", () => {
+    node.data.op = opSelect.value;
+    state.dirtyGraph = true;
+  });
+
+  const valueField = createVariableValueField(node.data?.name, node.data?.value, (val) => {
+    node.data.value = val;
+    state.dirtyGraph = true;
+  });
+
+  group.appendChild(varSelect);
+  group.appendChild(opSelect);
+  group.appendChild(valueField);
+  return group;
+}
+
+function getDefaultValueForVariable(name) {
+  const def = state.variables?.[name];
+  if (!def) return "";
+  if (def.type === "flag") return false;
+  if (def.type === "number") return 0;
+  if (def.type === "enum") return def.enumValues?.[0] ?? "";
+  return "";
+}
+
+function createVariableValueField(name, value, onChange) {
+  const def = state.variables?.[name];
+  if (def?.type === "flag") {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(value);
+    input.addEventListener("change", () => onChange(input.checked));
+    return input;
+  }
+  if (def?.type === "enum") {
+    const select = document.createElement("select");
+    select.className = "inspector-select";
+    const values = Array.isArray(def.enumValues) ? def.enumValues : [];
+    for (const v of values) {
+      const option = document.createElement("option");
+      option.value = v;
+      option.textContent = v;
+      select.appendChild(option);
+    }
+    select.value = value ?? values[0] ?? "";
+    select.addEventListener("change", () => onChange(select.value));
+    return select;
+  }
+  const input = document.createElement("input");
+  input.className = "inspector-input";
+  input.type = def?.type === "number" ? "number" : "text";
+  input.value = value ?? "";
+  input.addEventListener("input", () => onChange(def?.type === "number" ? Number(input.value) : input.value));
+  return input;
+}
+
+function createBranchSection(node) {
+  const group = createGroup("条件分支");
+  if (!node.data) node.data = {};
+  if (!node.data.cond) node.data.cond = { op: "truthy", var: "" };
+
+  const cond = node.data.cond;
+  if (cond.op === "and" || cond.op === "or" || Array.isArray(cond.items)) {
+    const textarea = document.createElement("textarea");
+    textarea.className = "inspector-textarea";
+    textarea.value = JSON.stringify(cond, null, 2);
+    textarea.addEventListener("change", () => {
+      try {
+        node.data.cond = JSON.parse(textarea.value);
+        state.dirtyGraph = true;
+      } catch {
+        setStatus("条件 JSON 格式错误", "error");
+      }
+    });
+    group.appendChild(textarea);
+    return group;
+  }
+
+  const opSelect = document.createElement("select");
+  opSelect.className = "inspector-select";
+  ["truthy", "falsy", "eq", "neq", "gt", "gte", "lt", "lte"].forEach((op) => {
+    const option = document.createElement("option");
+    option.value = op;
+    option.textContent = op;
+    opSelect.appendChild(option);
+  });
+  opSelect.value = cond.op ?? "truthy";
+  opSelect.addEventListener("change", () => {
+    node.data.cond.op = opSelect.value;
+    if (["truthy", "falsy"].includes(opSelect.value)) {
+      delete node.data.cond.value;
+    } else if (!("value" in node.data.cond)) {
+      node.data.cond.value = "";
+    }
+    state.dirtyGraph = true;
+    renderInspector(node.id);
+  });
+
+  const varInput = document.createElement("input");
+  varInput.className = "inspector-input";
+  varInput.value = cond.var ?? "";
+  varInput.placeholder = "变量名";
+  varInput.addEventListener("input", () => {
+    node.data.cond.var = varInput.value;
+    state.dirtyGraph = true;
+  });
+
+  group.appendChild(opSelect);
+  group.appendChild(varInput);
+
+  if (!["truthy", "falsy"].includes(cond.op)) {
+    const valueField = createVariableValueField(cond.var, cond.value, (val) => {
+    node.data.cond.value = val;
+    state.dirtyGraph = true;
+  });
+    group.appendChild(valueField);
+  }
+
+  const edgesGroup = createGroup("分支目标");
+  const thenEdge = ensureBranchEdge(node.id, "then");
+  const elseEdge = ensureBranchEdge(node.id, "else");
+  edgesGroup.appendChild(createEdgeTargetRow("then", thenEdge));
+  edgesGroup.appendChild(createEdgeTargetRow("else", elseEdge));
+  group.appendChild(edgesGroup);
+
+  return group;
+}
+
+function createChoiceSection(node) {
+  const group = createGroup("选项");
+  const edges = getOutgoingEdges(node.id);
+  if (edges.length === 0) {
+    addChoiceEdge(node.id);
+  }
+  for (const edge of getOutgoingEdges(node.id)) {
+    group.appendChild(createChoiceRow(edge));
+  }
+
+  const btn = document.createElement("button");
+  btn.className = "secondary";
+  btn.textContent = "新增选项";
+  btn.addEventListener("click", () => {
+    addChoiceEdge(node.id);
+    renderInspector(node.id);
+  });
+  group.appendChild(btn);
+  return group;
+}
+
+function createChoiceRow(edge) {
+  const row = document.createElement("div");
+  row.className = "edge-row";
+  const input = document.createElement("input");
+  input.className = "inspector-input";
+  input.value = edge.data?.text ?? "";
+  input.placeholder = "选项文本";
+  input.addEventListener("input", () => {
+    if (!edge.data) edge.data = {};
+    edge.data.text = input.value;
+    state.dirtyGraph = true;
+    updateChoicePortLabels(edge.from.nodeId);
+  });
+  const select = createTargetSelect(edge.to.nodeId, (value) => {
+    edge.to.nodeId = value;
+    state.dirtyGraph = true;
+    renderEdges();
+  });
+  row.appendChild(input);
+  row.appendChild(select);
+  return row;
+}
+
+function createNextSection(node) {
+  const group = createGroup("下一节点");
+  const edge = ensureSingleEdge(node.id);
+  const select = createTargetSelect(edge?.to?.nodeId ?? "", (value) => {
+    edge.to.nodeId = value;
+    state.dirtyGraph = true;
+    renderEdges();
+  });
+  group.appendChild(select);
+  return group;
+}
+
+function createLayoutSection(nodeId) {
+  const group = createGroup("布局");
+  const pos = getLayoutNode(nodeId);
+  const inputX = document.createElement("input");
+  inputX.className = "inspector-input";
+  inputX.type = "number";
+  inputX.value = pos?.x ?? 0;
+  inputX.addEventListener("input", () => {
+    const x = Number(inputX.value) || 0;
+    setLayoutNode(nodeId, { x, y: pos?.y ?? 0 });
+    const nodeEl = state.nodeElements.get(nodeId);
+    if (nodeEl) nodeEl.style.left = `${x}px`;
+    renderEdges();
+  });
+
+  const inputY = document.createElement("input");
+  inputY.className = "inspector-input";
+  inputY.type = "number";
+  inputY.value = pos?.y ?? 0;
+  inputY.addEventListener("input", () => {
+    const y = Number(inputY.value) || 0;
+    setLayoutNode(nodeId, { x: pos?.x ?? 0, y });
+    const nodeEl = state.nodeElements.get(nodeId);
+    if (nodeEl) nodeEl.style.top = `${y}px`;
+    renderEdges();
+  });
+
+  group.appendChild(inputX);
+  group.appendChild(inputY);
+  return group;
+}
+
+function createEdgeTargetRow(label, edge) {
+  const row = document.createElement("div");
+  row.className = "edge-row";
+  const tag = document.createElement("small");
+  tag.textContent = label;
+  const select = createTargetSelect(edge.to.nodeId, (value) => {
+    edge.to.nodeId = value;
+    state.dirtyGraph = true;
+    renderEdges();
+  });
+  row.appendChild(tag);
+  row.appendChild(select);
+  return row;
+}
+
+function createTargetSelect(currentValue, onChange) {
+  const select = document.createElement("select");
+  select.className = "inspector-select";
+  for (const node of state.graph.nodes) {
+    const option = document.createElement("option");
+    option.value = node.id;
+    option.textContent = `${node.type ?? "Node"} · ${node.id}`;
+    select.appendChild(option);
+  }
+  select.value = currentValue ?? "";
+  select.addEventListener("change", () => onChange(select.value));
+  return select;
+}
+
+function getOutgoingEdges(nodeId) {
+  return (state.graph.edges ?? []).filter((e) => e?.from?.nodeId === nodeId);
+}
+
+function getIncomingEdges(nodeId) {
+  return (state.graph.edges ?? []).filter((e) => e?.to?.nodeId === nodeId);
+}
+
+function resolveOutputPort(ports, edge) {
+  const portId = edge?.from?.portId;
+  if (portId) {
+    const hit = ports.outputs.find((p) => p.id === portId);
+    if (hit) return hit;
+  }
+  if (edge?.id) {
+    const byEdge = ports.outputs.find((p) => p.edgeId === edge.id);
+    if (byEdge) return byEdge;
+  }
+  return ports.outputs[0] ?? null;
+}
+
+function resolveInputPort(ports, edge) {
+  const portId = edge?.to?.portId;
+  if (portId) {
+    const hit = ports.inputs.find((p) => p.id === portId);
+    if (hit) return hit;
+  }
+  return ports.inputs[0] ?? null;
+}
+
+function ensureSingleEdge(nodeId) {
+  const edges = getOutgoingEdges(nodeId);
+  if (edges.length > 0) return edges[0];
+  const target = pickDefaultTarget(nodeId);
+  const edge = {
+    id: `e_${nodeId}_${target}_${Date.now()}`,
+    from: { nodeId, portId: "out" },
+    to: { nodeId: target, portId: "in" }
+  };
+  state.graph.edges.push(edge);
+  state.dirtyGraph = true;
+  const selected = state.selectedNodeId;
+  renderGraph();
+  if (selected) selectNode(selected);
+  return edge;
+}
+
+function ensureBranchEdge(nodeId, portId) {
+  const edges = getOutgoingEdges(nodeId);
+  const existing = edges.find((e) => e.from?.portId === portId);
+  if (existing) return existing;
+  const target = pickDefaultTarget(nodeId);
+  const edge = {
+    id: `e_${nodeId}_${portId}_${Date.now()}`,
+    from: { nodeId, portId },
+    to: { nodeId: target, portId: "in" }
+  };
+  state.graph.edges.push(edge);
+  state.dirtyGraph = true;
+  renderEdges();
+  return edge;
+}
+
+function addChoiceEdge(nodeId) {
+  const target = pickDefaultTarget(nodeId);
+  const index = getOutgoingEdges(nodeId).length + 1;
+  const edge = {
+    id: `e_${nodeId}_choice_${Date.now()}`,
+    from: { nodeId, portId: "out" },
+    to: { nodeId: target, portId: "in" },
+    data: { text: `选项${index}` }
+  };
+  state.graph.edges.push(edge);
+  state.dirtyGraph = true;
+  renderEdges();
+  return edge;
+}
+
+function pickDefaultTarget(nodeId) {
+  const nodes = state.graph.nodes.filter((n) => n.id !== nodeId);
+  return nodes[0]?.id ?? nodeId;
+}
+
+function updateNodeSummary(nodeId) {
+  const nodeEl = state.nodeElements.get(nodeId);
+  const node = getNodeById(nodeId);
+  if (!nodeEl || !node) return;
+  const meta = nodeEl.querySelector(".node-meta");
+  if (meta) meta.textContent = summarizeNode(node);
+  const ports = state.nodePorts.get(nodeId);
+  if (ports) layoutPorts(nodeEl, ports);
+  renderEdges();
+}
+
+function updateChoicePortLabels(nodeId) {
+  const ports = state.nodePorts.get(nodeId);
+  if (!ports) return;
+  const edges = getOutgoingEdges(nodeId);
+  for (const port of ports.outputs) {
+    const edge = port.edgeId ? edges.find((e) => e.id === port.edgeId) : null;
+    const index = edge ? edges.indexOf(edge) + 1 : 1;
+    const label = edge?.data?.text ?? `选项${index}`;
+    port.label = label;
+    if (port.el) {
+      port.el.title = label;
+      let span = port.el.querySelector(".port-label");
+      if (!span) {
+        span = document.createElement("span");
+        span.className = "port-label";
+        port.el.appendChild(span);
+      }
+      span.textContent = label;
+    }
+  }
+}
+
 async function openProject() {
   const dir = await api.selectProjectDir();
   if (!dir) return;
@@ -71,8 +1116,16 @@ async function loadProject(projectDir) {
   try {
     const projectPath = api.pathJoin(projectDir, "project.json");
     const project = await api.readJson(projectPath);
+    const variablesPath = api.pathJoin(projectDir, "variables.json");
+    let variables = {};
+    try {
+      variables = await api.readJson(variablesPath);
+    } catch {
+      variables = {};
+    }
     state.projectDir = projectDir;
     state.project = project;
+    state.variables = variables;
     els.projectPath.textContent = projectDir;
     els.outDir.value = api.pathJoin(projectDir, "build", "web");
     await renderScenes();
@@ -101,31 +1154,65 @@ async function loadScene(scene) {
   if (!state.projectDir) return;
   try {
     const graphPath = api.pathJoin(state.projectDir, scene.graph);
+    const layoutRel = computeLayoutPath(scene.graph);
+    const layoutPath = api.pathJoin(state.projectDir, layoutRel);
     const data = await api.readJson(graphPath);
+    if (!Array.isArray(data.nodes)) data.nodes = [];
+    if (!Array.isArray(data.edges)) data.edges = [];
+    let layout = null;
+    try {
+      layout = await api.readJson(layoutPath);
+    } catch {
+      layout = { schemaVersion: 1, viewport: { x: 0, y: 0, zoom: 1 }, nodes: {} };
+    }
+    if (!layout.nodes) layout.nodes = {};
+
     state.currentScene = scene;
     state.currentGraphPath = graphPath;
-    els.graphEditor.value = JSON.stringify(data, null, 2);
+    state.currentLayoutPath = layoutPath;
+    state.graph = data;
+    state.layout = layout;
+    state.selectedNodeId = null;
+    state.dirtyGraph = false;
+    state.dirtyLayout = false;
+
+    ensureLayoutForNodes();
+    const hasViewport =
+      state.layout.viewport &&
+      Number.isFinite(state.layout.viewport.x) &&
+      Number.isFinite(state.layout.viewport.y) &&
+      Number.isFinite(state.layout.viewport.zoom);
+    if (hasViewport) {
+      state.viewport = {
+        x: Number(state.layout.viewport.x ?? 0),
+        y: Number(state.layout.viewport.y ?? 0),
+        zoom: Number(state.layout.viewport.zoom ?? 1)
+      };
+      state.autoFit = false;
+    } else {
+      state.viewport = { x: 0, y: 0, zoom: 1 };
+      state.autoFit = true;
+    }
+    renderGraph();
+    renderInspector(null);
+    if (state.autoFit) fitToView(true);
+    else applyTransform();
     setStatus(`已打开场景：${scene.id}`);
   } catch (e) {
     setStatus(`加载场景失败：${e?.message ?? e}`, "error");
   }
 }
 
-function parseEditorJson() {
-  const text = els.graphEditor.value;
-  const data = JSON.parse(text);
-  return { data, text };
-}
-
-async function saveGraph() {
-  if (!state.currentGraphPath) {
+async function saveGraphAndLayout() {
+  if (!state.currentGraphPath || !state.currentLayoutPath) {
     setStatus("未选择场景", "warn");
     return;
   }
   try {
-    const { data } = parseEditorJson();
-    await api.writeJson(state.currentGraphPath, data);
-    els.graphEditor.value = JSON.stringify(data, null, 2);
+    await api.writeJson(state.currentGraphPath, state.graph);
+    await api.writeJson(state.currentLayoutPath, state.layout);
+    state.dirtyGraph = false;
+    state.dirtyLayout = false;
     setStatus("已保存");
   } catch (e) {
     setStatus(`保存失败：${e?.message ?? e}`, "error");
@@ -133,12 +1220,15 @@ async function saveGraph() {
 }
 
 async function formatGraph() {
-  try {
-    const { data } = parseEditorJson();
-    els.graphEditor.value = JSON.stringify(data, null, 2);
-    setStatus("已格式化");
-  } catch (e) {
-    setStatus(`格式化失败：${e?.message ?? e}`, "error");
+  if (!state.graph) return;
+  state.autoFit = true;
+  fitToView(true);
+  setStatus("已适应视图");
+}
+
+async function ensureSavedBeforeExport() {
+  if (state.dirtyGraph || state.dirtyLayout) {
+    await saveGraphAndLayout();
   }
 }
 
@@ -147,6 +1237,7 @@ async function compileProject() {
     setStatus("未打开项目", "warn");
     return;
   }
+  await ensureSavedBeforeExport();
   setStatus("编译中…");
   const result = await api.compileProject(state.projectDir);
   if (result.ok) {
@@ -163,6 +1254,7 @@ async function exportWeb() {
     setStatus("未打开项目", "warn");
     return;
   }
+  await ensureSavedBeforeExport();
   const outDir = els.outDir.value.trim() || api.pathJoin(state.projectDir, "build", "web");
   setStatus("导出中…");
   try {
@@ -178,6 +1270,7 @@ async function previewWeb() {
     setStatus("未打开项目", "warn");
     return;
   }
+  await ensureSavedBeforeExport();
   const outDir = els.outDir.value.trim() || api.pathJoin(state.projectDir, "build", "web");
   setStatus("导出并启动预览…");
   try {
@@ -204,6 +1297,7 @@ async function chooseOutDir() {
 function disableActions() {
   const buttons = [
     els.btnOpen,
+    els.btnToggleLeft,
     els.btnReload,
     els.btnFormat,
     els.btnSave,
@@ -217,18 +1311,67 @@ function disableActions() {
   }
 }
 
-if (!api) {
+  if (!api) {
   setStatus("编辑器预加载失败：请通过 npm run dev:editor 启动（不要直接打开 HTML）", "error");
   clearDiagnostics();
   disableActions();
 } else {
   els.btnOpen.addEventListener("click", openProject);
+  els.btnToggleLeft.addEventListener("click", () => {
+    if (!els.leftPanel) return;
+    els.leftPanel.classList.toggle("open");
+  });
   els.btnReload.addEventListener("click", () => state.projectDir && loadProject(state.projectDir));
   els.btnFormat.addEventListener("click", formatGraph);
-  els.btnSave.addEventListener("click", saveGraph);
+  els.btnSave.addEventListener("click", saveGraphAndLayout);
   els.btnCompile.addEventListener("click", compileProject);
   els.btnExport.addEventListener("click", exportWeb);
   els.btnPreview.addEventListener("click", previewWeb);
   els.btnChooseOut.addEventListener("click", chooseOutDir);
   clearDiagnostics();
+  els.graphViewport.addEventListener("click", (e) => {
+    if (
+      e.target === els.graphViewport ||
+      e.target === els.graphCanvas ||
+      e.target === els.graphNodes ||
+      e.target === els.graphEdges
+    ) {
+      state.selectedNodeId = null;
+      renderInspector(null);
+      for (const el of state.nodeElements.values()) el.classList.remove("selected");
+      renderEdges();
+    }
+  });
+  els.graphViewport.addEventListener("pointerdown", onViewportPointerDown);
+  els.graphViewport.addEventListener("pointermove", onViewportPointerMove);
+  els.graphViewport.addEventListener("wheel", onViewportWheel, { passive: false });
+  window.addEventListener("resize", () => {
+    if (state.autoFit) fitToView(true);
+    else applyTransform();
+  });
+}
+
+function fitToView(force) {
+  if (!state.graph || !state.layout) return;
+  const positions = Object.values(state.layout.nodes ?? {});
+  if (positions.length === 0) return;
+  const rect = els.graphViewport.getBoundingClientRect();
+  const minX = Math.min(...positions.map((p) => p.x ?? 0));
+  const minY = Math.min(...positions.map((p) => p.y ?? 0));
+  const maxX = Math.max(...positions.map((p) => (p.x ?? 0) + 220));
+  const maxY = Math.max(...positions.map((p) => (p.y ?? 0) + 120));
+  const contentW = maxX - minX + 160;
+  const contentH = maxY - minY + 160;
+  const zoomX = rect.width / contentW;
+  const zoomY = rect.height / contentH;
+  const zoom = Math.max(0.3, Math.min(1.2, Math.min(zoomX, zoomY)));
+
+  if (!force && Math.abs(zoom - state.viewport.zoom) < 0.01) return;
+
+  const x = rect.width / 2 - (minX + contentW / 2) * zoom;
+  const y = rect.height / 2 - (minY + contentH / 2) * zoom;
+  state.viewport = { x, y, zoom };
+  state.layout.viewport = { ...state.viewport };
+  state.dirtyLayout = true;
+  applyTransform();
 }

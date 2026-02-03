@@ -27,7 +27,7 @@
         "appearance": "assets/char/heroine.svg",
         "position": {
           "x": 0.62,
-          "y": 1.0,
+          "y": 1,
           "anchor": "bottom"
         },
         "scale": 1
@@ -125,81 +125,174 @@
   "edges": [
     {
       "id": "e_start_bg",
-      "from": { "nodeId": "n_start", "portId": "out" },
-      "to": { "nodeId": "n_bg_room", "portId": "in" }
+      "from": {
+        "nodeId": "n_start",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_bg_room",
+        "portId": "in"
+      }
     },
     {
       "id": "e_bg_char",
-      "from": { "nodeId": "n_bg_room", "portId": "out" },
-      "to": { "nodeId": "n_char_show", "portId": "in" }
+      "from": {
+        "nodeId": "n_bg_room",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_char_show",
+        "portId": "in"
+      }
     },
     {
       "id": "e_char_dlg",
-      "from": { "nodeId": "n_char_show", "portId": "out" },
-      "to": { "nodeId": "n_dlg_hello", "portId": "in" }
+      "from": {
+        "nodeId": "n_char_show",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_dlg_hello",
+        "portId": "in"
+      }
     },
     {
       "id": "e_dlg_choice",
-      "from": { "nodeId": "n_dlg_hello", "portId": "out" },
-      "to": { "nodeId": "n_choice_1", "portId": "in" }
+      "from": {
+        "nodeId": "n_dlg_hello",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_choice_1",
+        "portId": "in"
+      }
     },
     {
       "id": "e_choice_yes",
-      "from": { "nodeId": "n_choice_1", "portId": "out" },
-      "to": { "nodeId": "n_set_met", "portId": "in" },
-      "data": { "text": "我记得你" }
+      "from": {
+        "nodeId": "n_choice_1",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_set_met",
+        "portId": "in"
+      },
+      "data": {
+        "text": "我记得你"
+      }
     },
     {
       "id": "e_choice_no",
-      "from": { "nodeId": "n_choice_1", "portId": "out" },
-      "to": { "nodeId": "n_dlg_bad", "portId": "in" },
-      "data": { "text": "我不认识你" }
+      "from": {
+        "nodeId": "n_choice_1",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_dlg_bad",
+        "portId": "in"
+      },
+      "data": {
+        "text": "我不认识你"
+      }
     },
     {
       "id": "e_set_add",
-      "from": { "nodeId": "n_set_met", "portId": "out" },
-      "to": { "nodeId": "n_add_affection", "portId": "in" }
+      "from": {
+        "nodeId": "n_set_met",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_add_affection",
+        "portId": "in"
+      }
     },
     {
       "id": "e_add_branch",
-      "from": { "nodeId": "n_add_affection", "portId": "out" },
-      "to": { "nodeId": "n_branch_met", "portId": "in" }
+      "from": {
+        "nodeId": "n_add_affection",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_branch_met",
+        "portId": "in"
+      }
     },
     {
       "id": "e_branch_then",
-      "from": { "nodeId": "n_branch_met", "portId": "then" },
-      "to": { "nodeId": "n_dlg_nice", "portId": "in" }
+      "from": {
+        "nodeId": "n_branch_met",
+        "portId": "then"
+      },
+      "to": {
+        "nodeId": "n_dlg_nice",
+        "portId": "in"
+      }
     },
     {
       "id": "e_branch_else",
-      "from": { "nodeId": "n_branch_met", "portId": "else" },
-      "to": { "nodeId": "n_dlg_bad", "portId": "in" }
+      "from": {
+        "nodeId": "n_branch_met",
+        "portId": "else"
+      },
+      "to": {
+        "nodeId": "n_dlg_bad",
+        "portId": "in"
+      }
     },
     {
       "id": "e_nice_jump",
-      "from": { "nodeId": "n_dlg_nice", "portId": "out" },
-      "to": { "nodeId": "n_jump_good", "portId": "in" }
+      "from": {
+        "nodeId": "n_dlg_nice",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_jump_good",
+        "portId": "in"
+      }
     },
     {
       "id": "e_bad_end",
-      "from": { "nodeId": "n_dlg_bad", "portId": "out" },
-      "to": { "nodeId": "n_end_bad", "portId": "in" }
+      "from": {
+        "nodeId": "n_dlg_bad",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_end_bad",
+        "portId": "in"
+      }
     },
     {
       "id": "e_label_narr",
-      "from": { "nodeId": "n_label_good", "portId": "out" },
-      "to": { "nodeId": "n_narr_end", "portId": "in" }
+      "from": {
+        "nodeId": "n_label_good",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_narr_end",
+        "portId": "in"
+      }
     },
     {
       "id": "e_jump_label",
-      "from": { "nodeId": "n_jump_good", "portId": "out" },
-      "to": { "nodeId": "n_label_good", "portId": "in" }
+      "from": {
+        "nodeId": "n_jump_good",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_label_good",
+        "portId": "in"
+      }
     },
     {
       "id": "e_narr_end",
-      "from": { "nodeId": "n_narr_end", "portId": "out" },
-      "to": { "nodeId": "n_end_good", "portId": "in" }
+      "from": {
+        "nodeId": "n_narr_end",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_end_good",
+        "portId": "in"
+      }
     }
   ]
 }
-

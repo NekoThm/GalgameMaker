@@ -51,10 +51,10 @@ body {
 }
 
 .layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 10px;
+  position: relative;
+  display: block;
   padding: 10px;
+  height: 100%;
 }
 
 .panel {
@@ -138,6 +138,184 @@ textarea {
   line-height: 1.6;
 }
 
+#graphViewport {
+  position: absolute;
+  inset: 0;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+#graphCanvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2400px;
+  height: 1400px;
+  padding: 20px;
+  transform-origin: 0 0;
+}
+
+#graphEdges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#graphNodes {
+  position: absolute;
+  inset: 0;
+}
+
+.node {
+  position: absolute;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(18, 22, 34, 0.95);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  user-select: none;
+}
+
+.graph-shell {
+  position: absolute;
+  inset: 0;
+}
+
+.sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  max-width: 80vw;
+  transition: transform 160ms ease;
+  z-index: 5;
+}
+
+.sidebar.panel-left {
+  left: 0;
+  transform: translateX(-105%);
+}
+
+.sidebar.panel-left.open {
+  transform: translateX(0);
+}
+
+.inspector-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 360px;
+  max-width: 85vw;
+  transition: transform 160ms ease;
+  transform: translateX(105%);
+  z-index: 5;
+}
+
+.inspector-panel.open {
+  transform: translateX(0);
+}
+
+.node:active {
+  cursor: grabbing;
+}
+
+.node.selected {
+  border-color: rgba(122, 162, 247, 0.85);
+  box-shadow: 0 0 0 1px rgba(122, 162, 247, 0.4);
+}
+
+.node-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.node-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10141c;
+  border: 1px solid rgba(122, 162, 247, 0.8);
+  box-shadow: 0 0 6px rgba(122, 162, 247, 0.35);
+}
+
+.port-in {
+  left: -6px;
+}
+
+.port-out {
+  right: -6px;
+}
+
+.port-label {
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.inspector {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+  overflow: auto;
+}
+
+.inspector-group {
+  display: grid;
+  gap: 6px;
+}
+
+.inspector-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.inspector-input,
+.inspector-select,
+.inspector-textarea {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.inspector-textarea {
+  min-height: 80px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.edge-row {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 8px;
+  align-items: center;
+}
+
+.edge-row small {
+  color: var(--muted);
+}
+
 .statusbar {
   padding: 8px 12px;
   border-top: 1px solid var(--border);
@@ -172,4 +350,3 @@ textarea {
 .diag-warning {
   color: #e0af68;
 }
-
