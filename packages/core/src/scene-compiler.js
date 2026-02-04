@@ -128,7 +128,7 @@ function nodeDataString(node, key) {
  *   referencedAssets: Set<string>;
  * }}
  */
-export function compileSceneGraph({ sceneId, graph, variables }) {
+export function compileSceneGraph({ sceneId, graph, variables, sceneIds }) {
   const diagnostics = /** @type {Diagnostic[]} */ ([]);
   const referencedAssets = new Set();
 
@@ -339,6 +339,25 @@ export function compileSceneGraph({ sceneId, graph, variables }) {
       continue;
     }
 
+    if (type === "SwitchScene") {
+      const targetSceneId = nodeDataString(node, "sceneId");
+      if (!targetSceneId) {
+        push(diagnostics, "error", "SCENE_SWITCH_MISSING", "SwitchScene node requires data.sceneId", { sceneId, nodeId: id });
+      } else if (Array.isArray(sceneIds) && !sceneIds.includes(targetSceneId)) {
+        push(diagnostics, "error", "SCENE_SWITCH_NOT_FOUND", `Target scene not found: ${targetSceneId}`, { sceneId, nodeId: id });
+      }
+      const targetNodeId = nodeDataString(node, "nodeId");
+      const edges = outgoingByNode.get(id) ?? [];
+      if (edges.length > 0) {
+        push(diagnostics, "warning", "SCENE_SWITCH_OUT_IGNORED", "SwitchScene node ignores outgoing edges", {
+          sceneId,
+          nodeId: id
+        });
+      }
+      compiledNodes[id] = { op: "SCENE", sceneId: targetSceneId ?? "", nodeId: targetNodeId ?? null };
+      continue;
+    }
+
     if (type === "Branch") {
       const data = isPlainObject(node.data) ? node.data : {};
       const condRaw = data.cond;
@@ -423,6 +442,9 @@ export function compileSceneGraph({ sceneId, graph, variables }) {
     if (n.op === "IF") {
       stack.push(n.then);
       stack.push(n.else);
+      continue;
+    }
+    if (n.op === "SCENE") {
       continue;
     }
     if (n.op === "JUMP") {

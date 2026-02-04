@@ -6,6 +6,9 @@ const els = {
   btnReload: document.getElementById("btnReload"),
   btnFormat: document.getElementById("btnFormat"),
   btnAddNode: document.getElementById("btnAddNode"),
+  btnAddScene: document.getElementById("btnAddScene"),
+  btnSceneCreateOk: document.getElementById("btnSceneCreateOk"),
+  btnSceneCreateCancel: document.getElementById("btnSceneCreateCancel"),
   btnSave: document.getElementById("btnSave"),
   btnCompile: document.getElementById("btnCompile"),
   btnExport: document.getElementById("btnExport"),
@@ -25,6 +28,9 @@ const els = {
   leftPanel: document.getElementById("leftPanel"),
   rightPanel: document.getElementById("rightPanel")
 };
+els.sceneModal = document.getElementById("sceneModal");
+els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
+els.sceneIdInput = document.getElementById("sceneIdInput");
 
 const state = {
   projectDir: null,
@@ -95,6 +101,13 @@ const NODE_SCHEMA = {
   Choice: { label: "选项", fields: [] },
   Branch: { label: "条件分支", fields: [] },
   SetVariable: { label: "变量设置", fields: [] },
+  SwitchScene: {
+    label: "切换场景",
+    fields: [
+      { key: "sceneId", label: "目标场景", type: "scene-select" },
+      { key: "nodeId", label: "目标节点(可选)", type: "text" }
+    ]
+  },
   Jump: { label: "跳转", fields: [{ key: "targetLabel", label: "目标标签", type: "label-select" }] },
   Label: { label: "标签", fields: [{ key: "name", label: "标签名", type: "text" }] },
   BGM: {
@@ -135,6 +148,7 @@ const NODE_TYPE_ORDER = [
   "Choice",
   "Branch",
   "SetVariable",
+  "SwitchScene",
   "Jump",
   "Label",
   "Background",
@@ -249,6 +263,7 @@ function summarizeNode(node) {
   if (type === "Choice") return "选项";
   if (type === "Branch") return "条件分支";
   if (type === "SetVariable") return node.data?.name ?? "";
+  if (type === "SwitchScene") return node.data?.sceneId ?? "";
   if (type === "Jump") return node.data?.targetLabel ?? "";
   if (type === "Label") return node.data?.name ?? "";
   return "";
@@ -262,6 +277,7 @@ function createDefaultNodeData(type) {
     return { action: "show", characterId: "", renderer: "static", appearance: "", position: { x: 0.5, y: 1, anchor: "bottom" }, scale: 1 };
   if (type === "SetVariable") return { name: "", op: "set", value: 0 };
   if (type === "Branch") return { cond: { op: "truthy", var: "" } };
+  if (type === "SwitchScene") return { sceneId: "", nodeId: "" };
   if (type === "Jump") return { targetLabel: "" };
   if (type === "Label") return { name: "" };
   if (type === "BGM") return { audio: "", action: "play", volume: 1, loop: true, fadeMs: 0 };
@@ -340,7 +356,7 @@ function buildPortLayout(node) {
   let outputPorts = [];
 
   const hasInput = !["Start"].includes(type);
-  const hasOutput = !["End"].includes(type);
+  const hasOutput = !["End", "SwitchScene"].includes(type);
 
   inputCount = hasInput ? Math.max(1, incoming.length || 1) : 0;
 
@@ -873,7 +889,7 @@ function renderInspector(nodeId) {
     els.inspector.appendChild(createChoiceSection(node));
   }
 
-  if (!["End", "Choice", "Branch"].includes(node.type)) {
+  if (!["End", "Choice", "Branch", "SwitchScene"].includes(node.type)) {
     els.inspector.appendChild(createNextSection(node));
   }
 
@@ -922,6 +938,26 @@ function createField(node, field) {
       select.appendChild(option);
     }
     select.value = value ?? options[0]?.value ?? "";
+    select.addEventListener("change", () => {
+      setByPath(node.data, field.key, select.value);
+      state.dirtyGraph = true;
+      updateNodeSummary(node.id);
+    });
+    group.appendChild(select);
+    return group;
+  }
+
+  if (field.type === "scene-select") {
+    const select = document.createElement("select");
+    select.className = "inspector-select";
+    const scenes = Array.isArray(state.project?.scenes) ? state.project.scenes : [];
+    for (const scene of scenes) {
+      const option = document.createElement("option");
+      option.value = scene.id ?? "";
+      option.textContent = scene.id ?? "";
+      select.appendChild(option);
+    }
+    select.value = value ?? scenes[0]?.id ?? "";
     select.addEventListener("change", () => {
       setByPath(node.data, field.key, select.value);
       state.dirtyGraph = true;
@@ -1562,6 +1598,7 @@ function getNextNodeIds(nodeId) {
   const node = getNodeById(nodeId);
   if (!node) return [];
   const type = node.type ?? "Unknown";
+  if (type === "SwitchScene") return [];
   if (type === "Jump") {
     const labelName = node.data?.targetLabel;
     const labelNode = state.graph.nodes.find((n) => n.type === "Label" && n.data?.name === labelName);
@@ -1683,7 +1720,7 @@ async function loadProject(projectDir) {
   }
 }
 
-async function renderScenes() {
+async function renderScenes(selectedSceneId = null) {
   els.sceneList.innerHTML = "";
   if (!state.project || !Array.isArray(state.project.scenes)) return;
   for (const scene of state.project.scenes) {
@@ -1693,7 +1730,99 @@ async function renderScenes() {
     els.sceneList.appendChild(btn);
   }
   if (state.project.scenes.length > 0) {
-    await loadScene(state.project.scenes[0]);
+    const target =
+      state.project.scenes.find((s) => s.id === (selectedSceneId ?? state.currentScene?.id)) ?? state.project.scenes[0];
+    await loadScene(target);
+  }
+}
+
+function buildDefaultSceneId() {
+  const scenes = Array.isArray(state.project?.scenes) ? state.project.scenes : [];
+  const used = new Set(scenes.map((s) => s.id));
+  for (let i = 1; i <= 999; i += 1) {
+    const id = `scene_${String(i).padStart(3, "0")}`;
+    if (!used.has(id)) return id;
+  }
+  return `scene_${Date.now()}`;
+}
+
+function openSceneCreate() {
+  if (!state.projectDir || !state.project) {
+    setStatus("未打开项目", "warn");
+    return;
+  }
+  if (!els.sceneModal || !els.sceneIdInput) return;
+  els.sceneModal.hidden = false;
+  els.sceneIdInput.value = buildDefaultSceneId();
+  els.sceneIdInput.focus();
+  els.sceneIdInput.select();
+}
+
+function closeSceneCreate() {
+  if (!els.sceneModal || !els.sceneIdInput) return;
+  els.sceneModal.hidden = true;
+  els.sceneIdInput.value = "";
+}
+
+async function confirmSceneCreate() {
+  if (!state.projectDir || !state.project) {
+    setStatus("未打开项目", "warn");
+    return;
+  }
+  const sceneId = String(els.sceneIdInput?.value ?? "").trim();
+  if (!sceneId) {
+    setStatus("请输入场景 ID", "warn");
+    return;
+  }
+  if (!/^[a-zA-Z0-9_\\-]+$/.test(sceneId)) {
+    setStatus("场景 ID 仅允许字母/数字/下划线/短横线", "warn");
+    return;
+  }
+  if (state.project.scenes.some((s) => s.id === sceneId)) {
+    setStatus(`场景已存在：${sceneId}`, "warn");
+    return;
+  }
+  if (state.dirtyGraph || state.dirtyLayout) {
+    await saveGraphAndLayout();
+  }
+
+  const graphRel = `graphs/${sceneId}.graph.json`;
+  const graphPath = api.pathJoin(state.projectDir, graphRel);
+  try {
+    await api.stat(graphPath);
+    setStatus(`图文件已存在：${graphRel}`, "warn");
+    return;
+  } catch {
+    // 不存在则继续
+  }
+
+  const startId = "n_start";
+  const endId = "n_end";
+  const graph = {
+    sceneMeta: { entryNodeId: startId },
+    nodes: [
+      { id: startId, type: "Start", data: {} },
+      { id: endId, type: "End", data: {} }
+    ],
+    edges: [
+      {
+        id: `e_${startId}_${endId}`,
+        from: { nodeId: startId, portId: "out" },
+        to: { nodeId: endId, portId: "in" }
+      }
+    ]
+  };
+
+  try {
+    await api.writeJson(graphPath, graph);
+    state.project.scenes.push({ id: sceneId, graph: graphRel });
+    const projectPath = api.pathJoin(state.projectDir, "project.json");
+    await api.writeJson(projectPath, state.project);
+    closeSceneCreate();
+    await renderScenes(sceneId);
+    setStatus(`已新增场景：${sceneId}`);
+  } catch (e) {
+    setStatus(`新增场景失败：${e?.message ?? e}`, "error");
   }
 }
 
@@ -1848,6 +1977,7 @@ function disableActions() {
     els.btnReload,
     els.btnFormat,
     els.btnAddNode,
+    els.btnAddScene,
     els.btnSave,
     els.btnCompile,
     els.btnExport,
@@ -1881,6 +2011,24 @@ if (!api) {
       const type = els.nodeTypeSelect?.value || "Dialogue";
       const pos = getViewportCenterGraph();
       addNodeAt(type, pos);
+    });
+  }
+  if (els.btnAddScene) {
+    els.btnAddScene.addEventListener("click", openSceneCreate);
+  }
+  if (els.btnSceneCreateOk) {
+    els.btnSceneCreateOk.addEventListener("click", confirmSceneCreate);
+  }
+  if (els.btnSceneCreateCancel) {
+    els.btnSceneCreateCancel.addEventListener("click", closeSceneCreate);
+  }
+  if (els.sceneModalBackdrop) {
+    els.sceneModalBackdrop.addEventListener("click", closeSceneCreate);
+  }
+  if (els.sceneIdInput) {
+    els.sceneIdInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") confirmSceneCreate();
+      if (e.key === "Escape") closeSceneCreate();
     });
   }
   els.btnSave.addEventListener("click", saveGraphAndLayout);

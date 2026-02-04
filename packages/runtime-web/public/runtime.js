@@ -582,6 +582,18 @@ class Game {
         continue;
       }
 
+      if (node.op === "SCENE") {
+        const targetSceneId = node.sceneId;
+        const targetScene = this.ir.scenes[targetSceneId];
+        if (!targetScene) throw new Error(`Scene not found: ${targetSceneId}`);
+        const targetNodeId =
+          node.nodeId && targetScene.nodes?.[node.nodeId] ? node.nodeId : targetScene.entryNodeId;
+        this.state.sceneId = targetSceneId;
+        this.state.nodeId = targetNodeId;
+        this.renderStatus();
+        continue;
+      }
+
       if (node.op === "JUMP") {
         if (!node.to) throw new Error("Jump target missing");
         this.moveTo(node.to);

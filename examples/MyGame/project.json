@@ -12,7 +12,14 @@
     {
       "id": "scene_001",
       "graph": "graphs/scene_001.graph.json"
+    },
+    {
+      "id": "scene_002",
+      "graph": "graphs/scene_002.graph.json"
+    },
+    {
+      "id": "scene_003",
+      "graph": "graphs/scene_003.graph.json"
     }
   ]
 }
-

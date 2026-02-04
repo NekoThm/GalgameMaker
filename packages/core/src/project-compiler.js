@@ -98,6 +98,7 @@ export async function compileProjectFromDir(projectDir) {
   }
 
   const scenesArray = Array.isArray(project.scenes) ? project.scenes : [];
+  const sceneIds = scenesArray.map((s) => (s && typeof s.id === "string" ? s.id : null)).filter(Boolean);
   if (scenesArray.length === 0) {
     push(diagnostics, "error", "PROJECT_SCENES_EMPTY", "project.scenes must be a non-empty array", { projectPath: "project.json" });
   }
@@ -139,7 +140,8 @@ export async function compileProjectFromDir(projectDir) {
     const { sceneIR, diagnostics: sceneDiagnostics, referencedAssets } = compileSceneGraph({
       sceneId,
       graph,
-      variables
+      variables,
+      sceneIds
     });
 
     for (const diag of sceneDiagnostics) diagnostics.push(diag);
@@ -191,4 +193,3 @@ export async function compileProjectFromDir(projectDir) {
 
   return { ir, manifest, diagnostics };
 }
-

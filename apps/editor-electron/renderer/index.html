@@ -30,6 +30,7 @@
         <aside id="leftPanel" class="panel panel-left sidebar">
           <div class="panel-title">场景列表</div>
           <div id="sceneList" class="list"></div>
+          <button id="btnAddScene" class="secondary">新增场景</button>
           <div class="panel-title">导出目录</div>
           <input id="outDir" class="input" placeholder="默认：<项目>/build/web" />
           <button id="btnChooseOut" class="secondary">选择导出目录</button>
@@ -55,6 +56,18 @@
       <footer class="statusbar">
         <span id="status">就绪</span>
       </footer>
+    </div>
+
+    <div id="sceneModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-title">新增场景</div>
+        <input id="sceneIdInput" class="input" placeholder="scene_001" />
+        <div class="modal-actions">
+          <button id="btnSceneCreateOk">创建</button>
+          <button id="btnSceneCreateCancel" class="secondary">取消</button>
+        </div>
+      </div>
     </div>
 
     <script src="./renderer.js"></script>
