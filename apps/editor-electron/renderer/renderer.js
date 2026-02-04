@@ -42,7 +42,8 @@ const state = {
   nodePorts: new Map(),
   canvasOffset: { x: 0, y: 0 },
   viewport: { x: 0, y: 0, zoom: 1 },
-  autoFit: true
+  autoFit: true,
+  connecting: null
 };
 
 const NODE_SCHEMA = {
@@ -305,10 +306,6 @@ function deleteNode(nodeId) {
   if (!state.graph || !state.layout || !nodeId) return;
   const node = getNodeById(nodeId);
   if (!node) return;
-  if (node.type === "Start") {
-    setStatus("Start 节点不可删除", "warn");
-    return;
-  }
 
   state.graph.nodes = state.graph.nodes.filter((n) => n.id !== nodeId);
   state.graph.edges = (state.graph.edges ?? []).filter((e) => e.from?.nodeId !== nodeId && e.to?.nodeId !== nodeId);
@@ -362,12 +359,25 @@ function buildPortLayout(node) {
   const inputPorts = [];
   const orderedIncoming = incoming.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
   for (let i = 0; i < inputCount; i += 1) {
-    const edge = orderedIncoming[i];
     inputPorts.push({
       id: i === 0 ? "in" : `in-${i + 1}`,
       label: "",
-      edgeId: edge?.id
+      edgeId: null
     });
+  }
+
+  // 先按 edge.to.portId 绑定
+  for (const edge of orderedIncoming) {
+    const targetPortId = edge?.to?.portId;
+    if (!targetPortId) continue;
+    const port = inputPorts.find((p) => p.id === targetPortId && !p.edgeId);
+    if (port) port.edgeId = edge.id;
+  }
+  // 再按剩余顺序补齐
+  const remainingEdges = orderedIncoming.filter((e) => !inputPorts.some((p) => p.edgeId === e.id));
+  const freePorts = inputPorts.filter((p) => !p.edgeId);
+  for (let i = 0; i < Math.min(remainingEdges.length, freePorts.length); i += 1) {
+    freePorts[i].edgeId = remainingEdges[i].id;
   }
 
   return { inputs: inputPorts, outputs: outputPorts };
@@ -469,7 +479,9 @@ function refreshPortLayout() {
       const portEl = document.createElement("div");
       portEl.className = "port port-in";
       portEl.dataset.portId = port.id;
+      if (port.edgeId) portEl.dataset.edgeId = port.edgeId;
       portEl.title = port.label || port.id;
+      portEl.addEventListener("pointerup", (e) => onInputPortPointerUp(e, node.id, port.id));
       nodeEl.appendChild(portEl);
       port.el = portEl;
     }
@@ -477,6 +489,7 @@ function refreshPortLayout() {
       const portEl = document.createElement("div");
       portEl.className = "port port-out";
       portEl.dataset.portId = port.id;
+      if (port.edgeId) portEl.dataset.edgeId = port.edgeId;
       portEl.title = port.label || port.id;
       if (port.label) {
         const label = document.createElement("span");
@@ -484,6 +497,7 @@ function refreshPortLayout() {
         label.textContent = port.label;
         portEl.appendChild(label);
       }
+      portEl.addEventListener("pointerdown", (e) => onOutputPortPointerDown(e, node.id, port));
       nodeEl.appendChild(portEl);
       port.el = portEl;
     }
@@ -524,7 +538,9 @@ function renderGraph() {
       const portEl = document.createElement("div");
       portEl.className = "port port-in";
       portEl.dataset.portId = port.id;
+      if (port.edgeId) portEl.dataset.edgeId = port.edgeId;
       portEl.title = port.label || port.id;
+      portEl.addEventListener("pointerup", (e) => onInputPortPointerUp(e, node.id, port.id));
       nodeEl.appendChild(portEl);
       port.el = portEl;
     }
@@ -532,6 +548,7 @@ function renderGraph() {
       const portEl = document.createElement("div");
       portEl.className = "port port-out";
       portEl.dataset.portId = port.id;
+      if (port.edgeId) portEl.dataset.edgeId = port.edgeId;
       portEl.title = port.label || port.id;
       if (port.label) {
         const label = document.createElement("span");
@@ -539,6 +556,7 @@ function renderGraph() {
         label.textContent = port.label;
         portEl.appendChild(label);
       }
+      portEl.addEventListener("pointerdown", (e) => onOutputPortPointerDown(e, node.id, port));
       nodeEl.appendChild(portEl);
       port.el = portEl;
     }
@@ -593,6 +611,24 @@ function renderEdges() {
     paths.push(`<path d="${path}" stroke="${color}" stroke-width="${width}" fill="none" marker-end="url(#arrow)" />`);
   }
 
+  if (state.connecting && state.connecting.to) {
+    const { fromNodeId, fromPortId, to } = state.connecting;
+    const fromPos = state.layout.nodes?.[fromNodeId];
+    const fromPorts = state.nodePorts.get(fromNodeId);
+    const fromPort = fromPorts ? fromPorts.outputs.find((p) => p.id === fromPortId) ?? fromPorts.outputs[0] : null;
+    if (fromPos && fromPort) {
+      const x1 = fromPos.x + state.canvasOffset.x + (fromPort.offsetX ?? 0);
+      const y1 = fromPos.y + state.canvasOffset.y + (fromPort.offsetY ?? 0);
+      const x2 = to.x + state.canvasOffset.x;
+      const y2 = to.y + state.canvasOffset.y;
+      const dx = Math.max(60, Math.abs(x2 - x1) * 0.4);
+      const c1x = x1 + (x2 >= x1 ? dx : -dx);
+      const c2x = x2 - (x2 >= x1 ? dx : -dx);
+      const path = `M ${x1} ${y1} C ${c1x} ${y1}, ${c2x} ${y2}, ${x2} ${y2}`;
+      paths.push(`<path d="${path}" stroke="rgba(122,162,247,0.7)" stroke-width="2" fill="none" marker-end="url(#arrow)" />`);
+    }
+  }
+
   const defs = `<defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.6)"></path>
@@ -621,19 +657,26 @@ function onNodePointerDown(event, nodeId) {
 }
 
 function onPointerMove(event) {
-  if (!dragState) return;
-  const pointer = screenToGraph(event.clientX, event.clientY);
-  const x = pointer.x - dragState.offsetX;
-  const y = pointer.y - dragState.offsetY;
-  setLayoutNode(dragState.nodeId, { x, y });
-  const nodeEl = state.nodeElements.get(dragState.nodeId);
-  if (nodeEl) {
-    nodeEl.style.left = `${x + state.canvasOffset.x}px`;
-    nodeEl.style.top = `${y + state.canvasOffset.y}px`;
+  if (dragState) {
+    const pointer = screenToGraph(event.clientX, event.clientY);
+    const x = pointer.x - dragState.offsetX;
+    const y = pointer.y - dragState.offsetY;
+    setLayoutNode(dragState.nodeId, { x, y });
+    const nodeEl = state.nodeElements.get(dragState.nodeId);
+    if (nodeEl) {
+      nodeEl.style.left = `${x + state.canvasOffset.x}px`;
+      nodeEl.style.top = `${y + state.canvasOffset.y}px`;
+    }
+    dragState.moved = true;
+    state.autoFit = false;
+    renderEdges();
+    return;
   }
-  dragState.moved = true;
-  state.autoFit = false;
-  renderEdges();
+  if (state.connecting) {
+    const pointer = screenToGraph(event.clientX, event.clientY);
+    state.connecting.to = pointer;
+    renderEdges();
+  }
 }
 
 function onPointerUp() {
@@ -648,6 +691,10 @@ function onPointerUp() {
   }
   if (panState) {
     panState = null;
+  }
+  if (state.connecting) {
+    state.connecting = null;
+    renderEdges();
   }
 }
 
@@ -672,6 +719,7 @@ function onViewportPointerDown(event) {
     event.target !== els.graphNodes
   )
     return;
+  if (state.connecting) return;
   panState = {
     startX: event.clientX,
     startY: event.clientY,
@@ -723,6 +771,29 @@ function onViewportDoubleClick(event) {
   const type = els.nodeTypeSelect?.value || "Dialogue";
   const pos = screenToGraph(event.clientX, event.clientY);
   addNodeAt(type, pos);
+}
+
+function onOutputPortPointerDown(event, nodeId, port) {
+  event.stopPropagation();
+  event.preventDefault();
+  const pointer = screenToGraph(event.clientX, event.clientY);
+  state.connecting = {
+    fromNodeId: nodeId,
+    fromPortId: port.id,
+    fromEdgeId: port.edgeId ?? null,
+    to: pointer
+  };
+  renderEdges();
+}
+
+function onInputPortPointerUp(event, nodeId, portId) {
+  if (!state.connecting) return;
+  event.stopPropagation();
+  event.preventDefault();
+  const { fromNodeId, fromPortId, fromEdgeId } = state.connecting;
+  connectEdge({ fromNodeId, fromPortId, fromEdgeId, toNodeId: nodeId, toPortId: portId });
+  state.connecting = null;
+  refreshPortLayout();
 }
 
 function selectNode(nodeId) {
@@ -1192,6 +1263,64 @@ function resolveInputPort(ports, edge) {
     if (byEdge) return byEdge;
   }
   return ports.inputs[0] ?? null;
+}
+
+function connectEdge({ fromNodeId, fromPortId, fromEdgeId, toNodeId, toPortId }) {
+  if (!state.graph) return;
+  const fromNode = getNodeById(fromNodeId);
+  if (!fromNode) return;
+  const type = fromNode.type ?? "Unknown";
+  let edge = null;
+
+  if (type === "Branch") {
+    edge = state.graph.edges.find((e) => e.from?.nodeId === fromNodeId && e.from?.portId === fromPortId) ?? null;
+    if (!edge) {
+      edge = {
+        id: `e_${fromNodeId}_${fromPortId}_${Date.now()}`,
+        from: { nodeId: fromNodeId, portId: fromPortId },
+        to: { nodeId: toNodeId, portId: toPortId }
+      };
+      state.graph.edges.push(edge);
+    }
+  } else if (type === "Choice") {
+    if (fromEdgeId) {
+      edge = state.graph.edges.find((e) => e.id === fromEdgeId) ?? null;
+    }
+    if (!edge) {
+      edge = state.graph.edges.find((e) => e.from?.nodeId === fromNodeId && e.from?.portId === fromPortId) ?? null;
+    }
+    if (!edge) {
+      const label = state.nodePorts.get(fromNodeId)?.outputs.find((p) => p.id === fromPortId)?.label ?? "选项";
+      edge = {
+        id: `e_${fromNodeId}_choice_${Date.now()}`,
+        from: { nodeId: fromNodeId, portId: fromPortId },
+        to: { nodeId: toNodeId, portId: toPortId },
+        data: { text: label }
+      };
+      state.graph.edges.push(edge);
+    }
+  } else {
+    const outgoing = getOutgoingEdges(fromNodeId);
+    edge = outgoing[0] ?? null;
+    if (!edge) {
+      edge = {
+        id: `e_${fromNodeId}_out_${Date.now()}`,
+        from: { nodeId: fromNodeId, portId: fromPortId || "out" },
+        to: { nodeId: toNodeId, portId: toPortId }
+      };
+      state.graph.edges.push(edge);
+    } else {
+      // 单出口节点：保持只有一条边
+      state.graph.edges = state.graph.edges.filter((e) => e === edge || e.from?.nodeId !== fromNodeId);
+    }
+  }
+
+  edge.from.nodeId = fromNodeId;
+  edge.from.portId = fromPortId || edge.from.portId || "out";
+  edge.to.nodeId = toNodeId;
+  edge.to.portId = toPortId || edge.to.portId || "in";
+
+  state.dirtyGraph = true;
 }
 
 function ensureSingleEdge(nodeId) {
