@@ -5,11 +5,13 @@ const els = {
   btnToggleLeft: document.getElementById("btnToggleLeft"),
   btnReload: document.getElementById("btnReload"),
   btnFormat: document.getElementById("btnFormat"),
+  btnAddNode: document.getElementById("btnAddNode"),
   btnSave: document.getElementById("btnSave"),
   btnCompile: document.getElementById("btnCompile"),
   btnExport: document.getElementById("btnExport"),
   btnPreview: document.getElementById("btnPreview"),
   btnChooseOut: document.getElementById("btnChooseOut"),
+  nodeTypeSelect: document.getElementById("nodeTypeSelect"),
   projectPath: document.getElementById("projectPath"),
   sceneList: document.getElementById("sceneList"),
   diagnostics: document.getElementById("diagnostics"),
@@ -125,6 +127,25 @@ const NODE_SCHEMA = {
   Group: { label: "分组", fields: [] }
 };
 
+const NODE_TYPE_ORDER = [
+  "Start",
+  "Dialogue",
+  "Narration",
+  "Choice",
+  "Branch",
+  "SetVariable",
+  "Jump",
+  "Label",
+  "Background",
+  "Character",
+  "BGM",
+  "SFX",
+  "Voice",
+  "Comment",
+  "Group",
+  "End"
+];
+
 function setStatus(message, type = "info") {
   els.status.textContent = message;
   if (type === "error") els.status.style.color = "var(--danger)";
@@ -222,6 +243,87 @@ function summarizeNode(node) {
   if (type === "Jump") return node.data?.targetLabel ?? "";
   if (type === "Label") return node.data?.name ?? "";
   return "";
+}
+
+function createDefaultNodeData(type) {
+  if (type === "Dialogue") return { speaker: "", text: "" };
+  if (type === "Narration") return { text: "" };
+  if (type === "Background") return { background: "", transition: "cut", durationMs: 0 };
+  if (type === "Character")
+    return { action: "show", characterId: "", renderer: "static", appearance: "", position: { x: 0.5, y: 1, anchor: "bottom" }, scale: 1 };
+  if (type === "SetVariable") return { name: "", op: "set", value: 0 };
+  if (type === "Branch") return { cond: { op: "truthy", var: "" } };
+  if (type === "Jump") return { targetLabel: "" };
+  if (type === "Label") return { name: "" };
+  if (type === "BGM") return { audio: "", action: "play", volume: 1, loop: true, fadeMs: 0 };
+  if (type === "SFX") return { audio: "", action: "play", volume: 1, fadeMs: 0 };
+  if (type === "Voice") return { audio: "", action: "play", volume: 1 };
+  return {};
+}
+
+function generateNodeId(type) {
+  const base = `n_${type.toLowerCase()}`;
+  let index = 1;
+  let id = base;
+  const exists = (candidate) => state.graph?.nodes?.some((n) => n.id === candidate);
+  while (exists(id)) {
+    index += 1;
+    id = `${base}_${index}`;
+  }
+  return id;
+}
+
+function addNodeAt(type, position) {
+  if (!state.graph || !state.layout) return;
+  const nodeId = generateNodeId(type);
+  const node = {
+    id: nodeId,
+    type,
+    data: createDefaultNodeData(type)
+  };
+  if (!Array.isArray(state.graph.nodes)) state.graph.nodes = [];
+  if (!Array.isArray(state.graph.edges)) state.graph.edges = [];
+  if (!state.graph.sceneMeta) state.graph.sceneMeta = {};
+  if (!state.layout.nodes) state.layout.nodes = {};
+
+  state.graph.nodes.push(node);
+  state.layout.nodes[nodeId] = { x: position.x, y: position.y };
+
+  if (!state.graph.sceneMeta.entryNodeId && type === "Start") {
+    state.graph.sceneMeta.entryNodeId = nodeId;
+  }
+
+  state.dirtyGraph = true;
+  state.dirtyLayout = true;
+
+  renderGraph();
+  selectNode(nodeId);
+  setStatus(`已新增节点：${type}`);
+}
+
+function deleteNode(nodeId) {
+  if (!state.graph || !state.layout || !nodeId) return;
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  if (node.type === "Start") {
+    setStatus("Start 节点不可删除", "warn");
+    return;
+  }
+
+  state.graph.nodes = state.graph.nodes.filter((n) => n.id !== nodeId);
+  state.graph.edges = (state.graph.edges ?? []).filter((e) => e.from?.nodeId !== nodeId && e.to?.nodeId !== nodeId);
+  if (state.layout.nodes && state.layout.nodes[nodeId]) delete state.layout.nodes[nodeId];
+
+  if (state.graph.sceneMeta?.entryNodeId === nodeId) {
+    state.graph.sceneMeta.entryNodeId = state.graph.nodes[0]?.id ?? "";
+  }
+
+  state.selectedNodeId = null;
+  state.dirtyGraph = true;
+  state.dirtyLayout = true;
+  renderGraph();
+  renderInspector(null);
+  setStatus(`已删除节点：${nodeId}`);
 }
 
 function buildPortLayout(node) {
@@ -610,6 +712,19 @@ function onViewportWheel(event) {
   applyTransform();
 }
 
+function getViewportCenterGraph() {
+  const rect = els.graphViewport.getBoundingClientRect();
+  return screenToGraph(rect.left + rect.width / 2, rect.top + rect.height / 2);
+}
+
+function onViewportDoubleClick(event) {
+  if (!state.graph) return;
+  if (event.target.closest && event.target.closest(".node")) return;
+  const type = els.nodeTypeSelect?.value || "Dialogue";
+  const pos = screenToGraph(event.clientX, event.clientY);
+  addNodeAt(type, pos);
+}
+
 function selectNode(nodeId) {
   state.selectedNodeId = nodeId;
   for (const [id, el] of state.nodeElements.entries()) {
@@ -638,6 +753,14 @@ function renderInspector(nodeId) {
   header.className = "inspector-group";
   header.innerHTML = `<div class="inspector-label">节点</div><div>${escapeHtml(schema.label)} · ${escapeHtml(node.id)}</div>`;
   els.inspector.appendChild(header);
+
+  const actions = document.createElement("div");
+  actions.className = "inspector-group";
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "删除节点";
+  delBtn.addEventListener("click", () => deleteNode(node.id));
+  actions.appendChild(delBtn);
+  els.inspector.appendChild(actions);
 
   for (const field of schema.fields) {
     els.inspector.appendChild(createField(node, field));
@@ -1351,6 +1474,7 @@ function disableActions() {
     els.btnToggleLeft,
     els.btnReload,
     els.btnFormat,
+    els.btnAddNode,
     els.btnSave,
     els.btnCompile,
     els.btnExport,
@@ -1360,9 +1484,10 @@ function disableActions() {
   for (const btn of buttons) {
     if (btn) btn.disabled = true;
   }
+  if (els.nodeTypeSelect) els.nodeTypeSelect.disabled = true;
 }
 
-  if (!api) {
+if (!api) {
   setStatus("编辑器预加载失败：请通过 npm run dev:editor 启动（不要直接打开 HTML）", "error");
   clearDiagnostics();
   disableActions();
@@ -1374,6 +1499,17 @@ function disableActions() {
   });
   els.btnReload.addEventListener("click", () => state.projectDir && loadProject(state.projectDir));
   els.btnFormat.addEventListener("click", formatGraph);
+  if (els.btnAddNode) {
+    els.btnAddNode.addEventListener("click", () => {
+      if (!state.graph) {
+        setStatus("未打开项目", "warn");
+        return;
+      }
+      const type = els.nodeTypeSelect?.value || "Dialogue";
+      const pos = getViewportCenterGraph();
+      addNodeAt(type, pos);
+    });
+  }
   els.btnSave.addEventListener("click", saveGraphAndLayout);
   els.btnCompile.addEventListener("click", compileProject);
   els.btnExport.addEventListener("click", exportWeb);
@@ -1393,6 +1529,7 @@ function disableActions() {
       renderEdges();
     }
   });
+  els.graphViewport.addEventListener("dblclick", onViewportDoubleClick);
   els.graphViewport.addEventListener("pointerdown", onViewportPointerDown);
   els.graphViewport.addEventListener("pointermove", onViewportPointerMove);
   els.graphViewport.addEventListener("wheel", onViewportWheel, { passive: false });
@@ -1400,6 +1537,14 @@ function disableActions() {
     if (state.autoFit) fitToView(true);
     else applyTransform();
   });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      if (state.selectedNodeId) {
+        deleteNode(state.selectedNodeId);
+      }
+    }
+  });
+  populateNodeTypeSelect();
 }
 
 function fitToView(force) {
@@ -1425,4 +1570,17 @@ function fitToView(force) {
   state.layout.viewport = { ...state.viewport };
   state.dirtyLayout = true;
   applyTransform();
+}
+
+function populateNodeTypeSelect() {
+  if (!els.nodeTypeSelect) return;
+  els.nodeTypeSelect.innerHTML = "";
+  const types = NODE_TYPE_ORDER.filter((t) => NODE_SCHEMA[t]);
+  for (const type of types) {
+    const option = document.createElement("option");
+    option.value = type;
+    option.textContent = `${NODE_SCHEMA[type]?.label ?? type} (${type})`;
+    els.nodeTypeSelect.appendChild(option);
+  }
+  if (!els.nodeTypeSelect.value) els.nodeTypeSelect.value = "Dialogue";
 }
