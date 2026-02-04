@@ -269,6 +269,38 @@ function summarizeNode(node) {
   return "";
 }
 
+function getChoiceLabels(nodeId) {
+  const edges = getOutgoingEdges(nodeId);
+  if (edges.length === 0) return [];
+  return edges.map((edge, index) => {
+    const text = edge?.data?.text ?? "";
+    const fallback = `选项${index + 1}`;
+    return text || fallback;
+  });
+}
+
+function updateChoiceInlineList(nodeId) {
+  const nodeEl = state.nodeElements.get(nodeId);
+  if (!nodeEl) return;
+  const list = nodeEl.querySelector(".choice-list");
+  if (!list) return;
+  const labels = getChoiceLabels(nodeId);
+  list.innerHTML = "";
+  for (const label of labels) {
+    const item = document.createElement("div");
+    item.className = "choice-item";
+    item.textContent = label;
+    item.title = label;
+    list.appendChild(item);
+  }
+  requestAnimationFrame(() => {
+    const ports = state.nodePorts.get(nodeId);
+    if (!ports) return;
+    layoutPorts(nodeEl, ports);
+    renderEdges();
+  });
+}
+
 function createDefaultNodeData(type) {
   if (type === "Dialogue") return { speaker: "", text: "" };
   if (type === "Narration") return { text: "" };
@@ -527,6 +559,9 @@ function refreshPortLayout() {
     }
     layoutPorts(nodeEl, ports);
     state.nodePorts.set(node.id, ports);
+    if (node.type === "Choice") {
+      updateChoiceInlineList(node.id);
+    }
   }
   renderEdges();
 }
@@ -545,6 +580,7 @@ function renderGraph() {
     const nodeEl = document.createElement("div");
     nodeEl.className = "node";
     nodeEl.dataset.nodeId = node.id;
+    if (node.type) nodeEl.classList.add(`node-${String(node.type).toLowerCase()}`);
     nodeEl.style.left = `${pos.x + state.canvasOffset.x}px`;
     nodeEl.style.top = `${pos.y + state.canvasOffset.y}px`;
 
@@ -556,6 +592,11 @@ function renderGraph() {
     meta.textContent = summarizeNode(node);
     nodeEl.appendChild(title);
     nodeEl.appendChild(meta);
+    if (node.type === "Choice") {
+      const list = document.createElement("div");
+      list.className = "choice-list";
+      nodeEl.appendChild(list);
+    }
 
     const ports = buildPortLayout(node);
     for (const port of ports.inputs) {
@@ -594,6 +635,9 @@ function renderGraph() {
     state.nodeElements.set(node.id, nodeEl);
     layoutPorts(nodeEl, ports);
     state.nodePorts.set(node.id, ports);
+    if (node.type === "Choice") {
+      updateChoiceInlineList(node.id);
+    }
   }
 
   renderEdges();
@@ -1430,7 +1474,7 @@ function addChoiceEdge(nodeId) {
   };
   state.graph.edges.push(edge);
   state.dirtyGraph = true;
-  renderEdges();
+  refreshPortLayout();
   return edge;
 }
 
@@ -1688,6 +1732,7 @@ function updateChoicePortLabels(nodeId) {
       span.textContent = label;
     }
   }
+  updateChoiceInlineList(nodeId);
 }
 
 async function openProject() {
