@@ -258,8 +258,14 @@ function buildPortLayout(node) {
   }
 
   const inputPorts = [];
+  const orderedIncoming = incoming.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
   for (let i = 0; i < inputCount; i += 1) {
-    inputPorts.push({ id: i === 0 ? "in" : `in-${i + 1}`, label: "" });
+    const edge = orderedIncoming[i];
+    inputPorts.push({
+      id: i === 0 ? "in" : `in-${i + 1}`,
+      label: "",
+      edgeId: edge?.id
+    });
   }
 
   return { inputs: inputPorts, outputs: outputPorts };
@@ -347,6 +353,42 @@ function updateCanvasBounds() {
   const height = Math.max(800, maxY - minY + margin * 2);
   els.graphCanvas.style.width = `${width}px`;
   els.graphCanvas.style.height = `${height}px`;
+}
+
+function refreshPortLayout() {
+  if (!state.graph) return;
+  for (const node of state.graph.nodes) {
+    const nodeEl = state.nodeElements.get(node.id);
+    if (!nodeEl) continue;
+    const ports = buildPortLayout(node);
+    // 清理旧端口
+    nodeEl.querySelectorAll(".port").forEach((el) => el.remove());
+    for (const port of ports.inputs) {
+      const portEl = document.createElement("div");
+      portEl.className = "port port-in";
+      portEl.dataset.portId = port.id;
+      portEl.title = port.label || port.id;
+      nodeEl.appendChild(portEl);
+      port.el = portEl;
+    }
+    for (const port of ports.outputs) {
+      const portEl = document.createElement("div");
+      portEl.className = "port port-out";
+      portEl.dataset.portId = port.id;
+      portEl.title = port.label || port.id;
+      if (port.label) {
+        const label = document.createElement("span");
+        label.className = "port-label";
+        label.textContent = port.label;
+        portEl.appendChild(label);
+      }
+      nodeEl.appendChild(portEl);
+      port.el = portEl;
+    }
+    layoutPorts(nodeEl, ports);
+    state.nodePorts.set(node.id, ports);
+  }
+  renderEdges();
 }
 
 function renderGraph() {
@@ -987,6 +1029,7 @@ function createTargetSelect(currentValue, onChange) {
   }
   select.value = currentValue ?? "";
   select.addEventListener("change", () => onChange(select.value));
+  select.addEventListener("change", () => refreshPortLayout());
   return select;
 }
 
@@ -1013,9 +1056,17 @@ function resolveOutputPort(ports, edge) {
 
 function resolveInputPort(ports, edge) {
   const portId = edge?.to?.portId;
+  if (ports.inputs.length > 1 && edge?.id) {
+    const byEdge = ports.inputs.find((p) => p.edgeId === edge.id);
+    if (byEdge) return byEdge;
+  }
   if (portId) {
     const hit = ports.inputs.find((p) => p.id === portId);
     if (hit) return hit;
+  }
+  if (edge?.id) {
+    const byEdge = ports.inputs.find((p) => p.edgeId === edge.id);
+    if (byEdge) return byEdge;
   }
   return ports.inputs[0] ?? null;
 }
