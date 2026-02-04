@@ -12,7 +12,7 @@
       "id": "n_bg_room",
       "type": "Background",
       "data": {
-        "background": "assets/bg/room.svg",
+        "background": "assets/bg/classroom.PNG",
         "transition": "cut",
         "durationMs": 0
       }
@@ -24,13 +24,13 @@
         "action": "show",
         "characterId": "heroine",
         "renderer": "static",
-        "appearance": "assets/char/heroine.svg",
+        "appearance": "assets/char/g1.PNG",
         "position": {
-          "x": 0.62,
-          "y": 1,
+          "x": 0.8,
+          "y": 0.7,
           "anchor": "bottom"
         },
-        "scale": 1
+        "scale": 0.4
       }
     },
     {
