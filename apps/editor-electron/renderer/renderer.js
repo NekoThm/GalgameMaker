@@ -413,7 +413,13 @@ function buildPortLayout(node) {
   }
 
   const inputPorts = [];
-  const orderedIncoming = incoming.slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const orderedIncoming = incoming.slice().sort((a, b) => {
+    const aKey = getEdgeSourceOrder(a);
+    const bKey = getEdgeSourceOrder(b);
+    if (aKey.y !== bKey.y) return aKey.y - bKey.y;
+    if (aKey.x !== bKey.x) return aKey.x - bKey.x;
+    return String(a.id).localeCompare(String(b.id));
+  });
   for (let i = 0; i < inputCount; i += 1) {
     inputPorts.push({
       id: i === 0 ? "in" : `in-${i + 1}`,
@@ -422,21 +428,27 @@ function buildPortLayout(node) {
     });
   }
 
-  // 先按 edge.to.portId 绑定
-  for (const edge of orderedIncoming) {
-    const targetPortId = edge?.to?.portId;
-    if (!targetPortId) continue;
-    const port = inputPorts.find((p) => p.id === targetPortId && !p.edgeId);
-    if (port) port.edgeId = edge.id;
-  }
-  // 再按剩余顺序补齐
-  const remainingEdges = orderedIncoming.filter((e) => !inputPorts.some((p) => p.edgeId === e.id));
-  const freePorts = inputPorts.filter((p) => !p.edgeId);
-  for (let i = 0; i < Math.min(remainingEdges.length, freePorts.length); i += 1) {
-    freePorts[i].edgeId = remainingEdges[i].id;
+  for (let i = 0; i < Math.min(orderedIncoming.length, inputPorts.length); i += 1) {
+    inputPorts[i].edgeId = orderedIncoming[i].id;
   }
 
   return { inputs: inputPorts, outputs: outputPorts };
+}
+
+function getEdgeSourceOrder(edge) {
+  const fromId = edge?.from?.nodeId;
+  const fromPos = state.layout?.nodes?.[fromId];
+  let y = fromPos?.y ?? 0;
+  let x = fromPos?.x ?? 0;
+  const ports = state.nodePorts.get(fromId);
+  if (ports) {
+    const port = resolveOutputPort(ports, edge);
+    if (port) {
+      y += port.offsetY ?? 0;
+      x += port.offsetX ?? 0;
+    }
+  }
+  return { x, y };
 }
 
 function layoutPorts(nodeEl, ports) {
