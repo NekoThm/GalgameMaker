@@ -9,20 +9,356 @@
       "data": {}
     },
     {
+      "id": "n_dialogue",
+      "type": "Dialogue",
+      "data": {
+        "speaker": "林夏",
+        "text": "林夏低着头，声音发抖：\n“辰辰……其实我一直很怕你讨厌我。我知道我成绩差，又爱玩，还老缠着你……你会不会觉得我很烦啊？"
+      }
+    },
+    {
+      "id": "n_narration",
+      "type": "Narration",
+      "data": {
+        "text": "6月，离中考只剩两周。\n林夏成绩已经从倒数第十冲到中游，她却突然拉你上天台。"
+      }
+    },
+    {
+      "id": "n_background",
+      "type": "Background",
+      "data": {
+        "background": "assets/bg/rooftop.PNG",
+        "transition": "cut",
+        "durationMs": 0
+      }
+    },
+    {
+      "id": "n_character",
+      "type": "Character",
+      "data": {
+        "action": "show",
+        "characterId": "林夏",
+        "renderer": "static",
+        "appearance": "assets/char/g1.PNG",
+        "position": {
+          "x": 0.7,
+          "y": 0,
+          "anchor": "bottom"
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "n_choice",
+      "type": "Choice",
+      "data": {}
+    },
+    {
+      "id": "n_background_2",
+      "type": "Background",
+      "data": {
+        "background": "assets/bg/end1.PNG",
+        "transition": "cut",
+        "durationMs": 0
+      }
+    },
+    {
+      "id": "n_background_3",
+      "type": "Background",
+      "data": {
+        "background": "assets/bg/end2.PNG",
+        "transition": "cut",
+        "durationMs": 0
+      }
+    },
+    {
+      "id": "n_background_4",
+      "type": "Background",
+      "data": {
+        "background": "assets/bg/end3.PNG",
+        "transition": "cut",
+        "durationMs": 0
+      }
+    },
+    {
       "id": "n_end",
       "type": "End",
       "data": {}
+    },
+    {
+      "id": "n_end_2",
+      "type": "End",
+      "data": {}
+    },
+    {
+      "id": "n_end_3",
+      "type": "End",
+      "data": {}
+    },
+    {
+      "id": "n_narration_2",
+      "type": "Narration",
+      "data": {
+        "text": "你表白成功，林夏哭着扑进你怀里。\n中考后你们一起考上S市一中。\n暑假每天约会：吃肯德基、骑单车去江边、去新华书店买参考书、在她家阳台看星星。\n最后一天，她把那架你叠得最丑的纸飞机还给你，上面多了一行字：\n“顾辰，我要和你考同一所大学，一起当同桌，一辈子。”"
+      }
+    },
+    {
+      "id": "n_narration_3",
+      "type": "Narration",
+      "data": {
+        "text": "林夏以为你只把她当玩伴，伤心地转到实验班。\n中考后你们再也没说过话。\n很多年后同学聚会，她已经变成优雅的女企业家，笑着对你说：\n“当年我真的很喜欢你呢……可惜你从来没发现。”"
+      }
+    },
+    {
+      "id": "n_narration_4",
+      "type": "Narration",
+      "data": {
+        "text": "你一直冷淡拒绝。\n林夏最后一次缠你，被你推开后，眼泪掉下来：\n“……我再也不烦你了。”\n毕业那天，她没来学校。\n你考上大学后才知道，她跟着爸爸去了加拿大。\n你翻开抽屉，那架纸飞机还静静躺着，上面有她用圆珠笔写的一行小字：\n“顾辰，再见。”"
+      }
+    },
+    {
+      "id": "n_character_2",
+      "type": "Character",
+      "data": {
+        "action": "hide",
+        "characterId": "林夏",
+        "renderer": "static",
+        "appearance": "",
+        "position": {
+          "x": 0.5,
+          "y": 1,
+          "anchor": "bottom"
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "n_character_3",
+      "type": "Character",
+      "data": {
+        "action": "hide",
+        "characterId": "林夏",
+        "renderer": "static",
+        "appearance": "",
+        "position": {
+          "x": 0.5,
+          "y": 1,
+          "anchor": "bottom"
+        },
+        "scale": 1
+      }
+    },
+    {
+      "id": "n_character_4",
+      "type": "Character",
+      "data": {
+        "action": "hide",
+        "characterId": "林夏",
+        "renderer": "static",
+        "appearance": "",
+        "position": {
+          "x": 0.5,
+          "y": 1,
+          "anchor": "bottom"
+        },
+        "scale": 1
+      }
     }
   ],
   "edges": [
     {
-      "id": "e_n_start_n_end",
+      "id": "e_n_start_out_1770205678196",
       "from": {
         "nodeId": "n_start",
         "portId": "out"
       },
       "to": {
+        "nodeId": "n_background",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_narration_out_1770205685047",
+      "from": {
+        "nodeId": "n_narration",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_dialogue",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_background_out_1770205740780",
+      "from": {
+        "nodeId": "n_background",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_character",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_character_out_1770205752998",
+      "from": {
+        "nodeId": "n_character",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_narration",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_dialogue_out_1770207070035",
+      "from": {
+        "nodeId": "n_dialogue",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_choice",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_choice_choice_1770207072298",
+      "from": {
+        "nodeId": "n_choice",
+        "portId": "out-1"
+      },
+      "to": {
+        "nodeId": "n_background_2",
+        "portId": "in"
+      },
+      "data": {
+        "text": "鼓起全部勇气：“……我喜欢你。从高一开学第一天你坐我旁边开始，我就喜欢你了。”"
+      }
+    },
+    {
+      "id": "e_n_choice_choice_1770207073065",
+      "from": {
+        "nodeId": "n_choice",
+        "portId": "out-2"
+      },
+      "to": {
+        "nodeId": "n_background_3",
+        "portId": "in"
+      },
+      "data": {
+        "text": "犹豫：“我们……还是先好好考上同一所高中吧？”"
+      }
+    },
+    {
+      "id": "e_n_choice_choice_1770207073781",
+      "from": {
+        "nodeId": "n_choice",
+        "portId": "out-3"
+      },
+      "to": {
+        "nodeId": "n_background_4",
+        "portId": "in"
+      },
+      "data": {
+        "text": "逃避：“我……我不知道……”"
+      }
+    },
+    {
+      "id": "e_n_background_4_out_1770207168713",
+      "from": {
+        "nodeId": "n_background_4",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_character_4",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_background_2_out_1770207177330",
+      "from": {
+        "nodeId": "n_background_2",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_character_2",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_background_3_out_1770207184829",
+      "from": {
+        "nodeId": "n_background_3",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_character_3",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_narration_4_out_1770207242446",
+      "from": {
+        "nodeId": "n_narration_4",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_end_3",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_narration_3_out_1770207252818",
+      "from": {
+        "nodeId": "n_narration_3",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_end_2",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_narration_2_out_1770207264746",
+      "from": {
+        "nodeId": "n_narration_2",
+        "portId": "out"
+      },
+      "to": {
         "nodeId": "n_end",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_character_2_out_1770208394958",
+      "from": {
+        "nodeId": "n_character_2",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_narration_2",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_character_3_out_1770208422783",
+      "from": {
+        "nodeId": "n_character_3",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_narration_3",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_character_4_out_1770208447660",
+      "from": {
+        "nodeId": "n_character_4",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_narration_4",
         "portId": "in"
       }
     }

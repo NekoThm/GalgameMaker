@@ -1,13 +1,8 @@
 {
   "sceneMeta": {
-    "entryNodeId": "n_start"
+    "entryNodeId": "n_bg_room"
   },
   "nodes": [
-    {
-      "id": "n_start",
-      "type": "Start",
-      "data": {}
-    },
     {
       "id": "n_bg_room",
       "type": "Background",
@@ -22,7 +17,7 @@
       "type": "Character",
       "data": {
         "action": "show",
-        "characterId": "heroine",
+        "characterId": "林夏",
         "renderer": "static",
         "appearance": "assets/char/g1.PNG",
         "position": {
@@ -38,7 +33,7 @@
       "type": "Dialogue",
       "data": {
         "speaker": "女主",
-        "text": "你好。\n这是一个 Web MVP 演示。"
+        "text": "耶！新同桌！我是林夏，你呢？来，给你听周杰伦的新歌！"
       }
     },
     {
@@ -47,93 +42,54 @@
       "data": {}
     },
     {
-      "id": "n_set_met",
-      "type": "SetVariable",
-      "data": {
-        "name": "metHeroine",
-        "op": "set",
-        "value": true
-      }
-    },
-    {
       "id": "n_add_affection",
       "type": "SetVariable",
       "data": {
         "name": "affection",
         "op": "add",
-        "value": 1
+        "value": 15
       }
     },
     {
-      "id": "n_branch_met",
-      "type": "Branch",
+      "id": "n_setvariable",
+      "type": "SetVariable",
       "data": {
-        "cond": {
-          "op": "truthy",
-          "var": "metHeroine"
-        }
+        "name": "affection",
+        "op": "add",
+        "value": 8
       }
     },
     {
-      "id": "n_dlg_nice",
-      "type": "Dialogue",
+      "id": "n_setvariable_2",
+      "type": "SetVariable",
       "data": {
-        "speaker": "女主",
-        "text": "你记得我呀。那我们继续吧。"
+        "name": "affection",
+        "op": "add",
+        "value": -12
       }
     },
     {
-      "id": "n_jump_good",
-      "type": "Jump",
-      "data": {
-        "targetLabel": "ending_good"
-      }
-    },
-    {
-      "id": "n_dlg_bad",
-      "type": "Dialogue",
-      "data": {
-        "speaker": "女主",
-        "text": "你不认识我吗？那就先到这里。"
-      }
-    },
-    {
-      "id": "n_end_bad",
-      "type": "End",
+      "id": "n_start",
+      "type": "Start",
       "data": {}
     },
     {
-      "id": "n_label_good",
-      "type": "Label",
-      "data": {
-        "name": "ending_good"
-      }
-    },
-    {
-      "id": "n_narr_end",
+      "id": "n_narration",
       "type": "Narration",
       "data": {
-        "text": "（示例 Good End）\n你获得了一个小小的结局。"
+        "text": "老师：“顾辰，你和林夏坐一起吧。”\n林夏把书包往桌上一甩，冲你笑得像朵向日葵：\n她把耳机直接塞进你耳朵里，里面是《告白气球》。"
       }
     },
     {
-      "id": "n_end_good",
-      "type": "End",
-      "data": {}
+      "id": "n_switchscene",
+      "type": "SwitchScene",
+      "data": {
+        "sceneId": "scene_002",
+        "nodeId": ""
+      }
     }
   ],
   "edges": [
-    {
-      "id": "e_start_bg",
-      "from": {
-        "nodeId": "n_start",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_bg_room",
-        "portId": "in"
-      }
-    },
     {
       "id": "e_bg_char",
       "from": {
@@ -152,145 +108,115 @@
         "portId": "out"
       },
       "to": {
-        "nodeId": "n_dlg_hello",
+        "nodeId": "n_narration",
         "portId": "in"
-      }
-    },
-    {
-      "id": "e_dlg_choice",
-      "from": {
-        "nodeId": "n_dlg_hello",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_choice_1",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_choice_yes",
-      "from": {
-        "nodeId": "n_choice_1",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_set_met",
-        "portId": "in"
-      },
-      "data": {
-        "text": "我记得你"
       }
     },
     {
       "id": "e_choice_no",
       "from": {
         "nodeId": "n_choice_1",
-        "portId": "out"
+        "portId": "out-1"
       },
       "to": {
-        "nodeId": "n_dlg_bad",
+        "nodeId": "n_setvariable",
         "portId": "in"
       },
       "data": {
-        "text": "我不认识你"
+        "text": "低头：“嗯……顾辰。”"
       }
     },
     {
-      "id": "e_set_add",
+      "id": "e_n_choice_1_choice_1770198069767",
       "from": {
-        "nodeId": "n_set_met",
-        "portId": "out"
+        "nodeId": "n_choice_1",
+        "portId": "out-2"
+      },
+      "to": {
+        "nodeId": "n_setvariable_2",
+        "portId": "in"
+      },
+      "data": {
+        "text": "推开耳机：“上课别玩这些。”"
+      }
+    },
+    {
+      "id": "e_n_choice_1_choice_1770202141869",
+      "from": {
+        "nodeId": "n_choice_1",
+        "portId": "out-3"
       },
       "to": {
         "nodeId": "n_add_affection",
         "portId": "in"
+      },
+      "data": {
+        "text": "脸红小声：“……我叫顾辰，周杰伦很好听。”"
       }
     },
     {
-      "id": "e_add_branch",
+      "id": "e_n_start_n_bg_room_1770202347256",
+      "from": {
+        "nodeId": "n_start",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_bg_room",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_narration_n_bg_room_1770202355256",
+      "from": {
+        "nodeId": "n_narration",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_dlg_hello",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_setvariable_n_bg_room_1770202836552",
+      "from": {
+        "nodeId": "n_setvariable",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_switchscene",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_add_affection_out_1770202845551",
       "from": {
         "nodeId": "n_add_affection",
         "portId": "out"
       },
       "to": {
-        "nodeId": "n_branch_met",
+        "nodeId": "n_switchscene",
         "portId": "in"
       }
     },
     {
-      "id": "e_branch_then",
+      "id": "e_n_setvariable_2_n_bg_room_1770202849603",
       "from": {
-        "nodeId": "n_branch_met",
-        "portId": "then"
-      },
-      "to": {
-        "nodeId": "n_dlg_nice",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_branch_else",
-      "from": {
-        "nodeId": "n_branch_met",
-        "portId": "else"
-      },
-      "to": {
-        "nodeId": "n_dlg_bad",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_nice_jump",
-      "from": {
-        "nodeId": "n_dlg_nice",
+        "nodeId": "n_setvariable_2",
         "portId": "out"
       },
       "to": {
-        "nodeId": "n_jump_good",
+        "nodeId": "n_switchscene",
         "portId": "in"
       }
     },
     {
-      "id": "e_bad_end",
+      "id": "e_n_dlg_hello_out_1770206700653",
       "from": {
-        "nodeId": "n_dlg_bad",
+        "nodeId": "n_dlg_hello",
         "portId": "out"
       },
       "to": {
-        "nodeId": "n_end_bad",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_label_narr",
-      "from": {
-        "nodeId": "n_label_good",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_narr_end",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_jump_label",
-      "from": {
-        "nodeId": "n_jump_good",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_label_good",
-        "portId": "in"
-      }
-    },
-    {
-      "id": "e_narr_end",
-      "from": {
-        "nodeId": "n_narr_end",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_end_good",
+        "nodeId": "n_choice_1",
         "portId": "in"
       }
     }
