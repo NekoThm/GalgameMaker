@@ -1204,10 +1204,11 @@ function createBranchSection(node) {
   }
 
   const edgesGroup = createGroup("分支目标");
-  const thenEdge = ensureBranchEdge(node.id, "then");
-  const elseEdge = ensureBranchEdge(node.id, "else");
-  edgesGroup.appendChild(createEdgeTargetRow("then", thenEdge));
-  edgesGroup.appendChild(createEdgeTargetRow("else", elseEdge));
+  const edges = getOutgoingEdges(node.id);
+  const thenEdge = edges.find((e) => e.from?.portId === "then") ?? null;
+  const elseEdge = edges.find((e) => e.from?.portId === "else") ?? null;
+  edgesGroup.appendChild(createBranchTargetRow("then", node.id, "then", thenEdge));
+  edgesGroup.appendChild(createBranchTargetRow("else", node.id, "else", elseEdge));
   group.appendChild(edgesGroup);
 
   return group;
@@ -1215,10 +1216,6 @@ function createBranchSection(node) {
 
 function createChoiceSection(node) {
   const group = createGroup("选项");
-  const edges = getOutgoingEdges(node.id);
-  if (edges.length === 0) {
-    addChoiceEdge(node.id);
-  }
   for (const edge of getOutgoingEdges(node.id)) {
     group.appendChild(createChoiceRow(edge));
   }
@@ -1248,10 +1245,16 @@ function createChoiceRow(edge) {
     updateChoicePortLabels(edge.from.nodeId);
   });
   const select = createTargetSelect(edge.to.nodeId, (value) => {
+    if (!value) {
+      state.graph.edges = (state.graph.edges ?? []).filter((e) => e !== edge);
+      state.dirtyGraph = true;
+      refreshPortLayout();
+      return;
+    }
     edge.to.nodeId = value;
     state.dirtyGraph = true;
     renderEdges();
-  });
+  }, true);
   row.appendChild(input);
   row.appendChild(select);
   return row;
@@ -1259,12 +1262,10 @@ function createChoiceRow(edge) {
 
 function createNextSection(node) {
   const group = createGroup("下一节点");
-  const edge = ensureSingleEdge(node.id);
+  const edge = getOutgoingEdges(node.id)[0] ?? null;
   const select = createTargetSelect(edge?.to?.nodeId ?? "", (value) => {
-    edge.to.nodeId = value;
-    state.dirtyGraph = true;
-    renderEdges();
-  });
+    setSingleEdgeTarget(node.id, value);
+  }, true);
   group.appendChild(select);
   return group;
 }
@@ -1303,24 +1304,28 @@ function createLayoutSection(nodeId) {
   return group;
 }
 
-function createEdgeTargetRow(label, edge) {
+function createBranchTargetRow(label, nodeId, portId, edge) {
   const row = document.createElement("div");
   row.className = "edge-row";
   const tag = document.createElement("small");
   tag.textContent = label;
-  const select = createTargetSelect(edge.to.nodeId, (value) => {
-    edge.to.nodeId = value;
-    state.dirtyGraph = true;
-    renderEdges();
-  });
+  const select = createTargetSelect(edge?.to?.nodeId ?? "", (value) => {
+    setBranchEdgeTarget(nodeId, portId, value);
+  }, true);
   row.appendChild(tag);
   row.appendChild(select);
   return row;
 }
 
-function createTargetSelect(currentValue, onChange) {
+function createTargetSelect(currentValue, onChange, allowEmpty = false) {
   const select = document.createElement("select");
   select.className = "inspector-select";
+  if (allowEmpty) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "未连接";
+    select.appendChild(option);
+  }
   for (const node of state.graph.nodes) {
     const option = document.createElement("option");
     option.value = node.id;
@@ -1369,6 +1374,58 @@ function resolveInputPort(ports, edge) {
     if (byEdge) return byEdge;
   }
   return ports.inputs[0] ?? null;
+}
+
+function setSingleEdgeTarget(nodeId, targetId) {
+  if (!state.graph) return;
+  const edges = getOutgoingEdges(nodeId);
+  const edge = edges[0] ?? null;
+  if (!targetId) {
+    if (edge) {
+      state.graph.edges = state.graph.edges.filter((e) => e !== edge);
+      state.dirtyGraph = true;
+      refreshPortLayout();
+    }
+    return;
+  }
+  if (!edge) {
+    const newEdge = {
+      id: `e_${nodeId}_out_${Date.now()}`,
+      from: { nodeId, portId: "out" },
+      to: { nodeId: targetId, portId: "in" }
+    };
+    state.graph.edges.push(newEdge);
+  } else {
+    edge.to.nodeId = targetId;
+  }
+  state.dirtyGraph = true;
+  refreshPortLayout();
+}
+
+function setBranchEdgeTarget(nodeId, portId, targetId) {
+  if (!state.graph) return;
+  const edges = getOutgoingEdges(nodeId);
+  const edge = edges.find((e) => e.from?.portId === portId) ?? null;
+  if (!targetId) {
+    if (edge) {
+      state.graph.edges = state.graph.edges.filter((e) => e !== edge);
+      state.dirtyGraph = true;
+      refreshPortLayout();
+    }
+    return;
+  }
+  if (!edge) {
+    const newEdge = {
+      id: `e_${nodeId}_${portId}_${Date.now()}`,
+      from: { nodeId, portId },
+      to: { nodeId: targetId, portId: "in" }
+    };
+    state.graph.edges.push(newEdge);
+  } else {
+    edge.to.nodeId = targetId;
+  }
+  state.dirtyGraph = true;
+  refreshPortLayout();
 }
 
 function connectEdge({ fromNodeId, fromPortId, fromEdgeId, toNodeId, toPortId }) {
