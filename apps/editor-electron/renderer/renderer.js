@@ -330,6 +330,15 @@ function generateNodeId(type) {
   return id;
 }
 
+function cloneNodeData(data) {
+  if (!data || typeof data !== "object") return {};
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch {
+    return {};
+  }
+}
+
 function addNodeAt(type, position) {
   if (!state.graph || !state.layout) return;
   const nodeId = generateNodeId(type);
@@ -356,6 +365,28 @@ function addNodeAt(type, position) {
   renderGraph();
   selectNode(nodeId);
   setStatus(`已新增节点：${type}`);
+}
+
+function duplicateNode(nodeId) {
+  if (!state.graph || !state.layout || !nodeId) return;
+  const source = getNodeById(nodeId);
+  if (!source) return;
+  const newId = generateNodeId(source.type ?? "Node");
+  const node = {
+    id: newId,
+    type: source.type ?? "Unknown",
+    data: cloneNodeData(source.data)
+  };
+  if (!Array.isArray(state.graph.nodes)) state.graph.nodes = [];
+  if (!state.layout.nodes) state.layout.nodes = {};
+  state.graph.nodes.push(node);
+  const pos = getLayoutNode(nodeId) ?? { x: 0, y: 0 };
+  state.layout.nodes[newId] = { x: (pos?.x ?? 0) + 24, y: (pos?.y ?? 0) + 24 };
+  state.dirtyGraph = true;
+  state.dirtyLayout = true;
+  renderGraph();
+  selectNode(newId);
+  setStatus(`已复制节点：${nodeId} → ${newId}`);
 }
 
 function deleteNode(nodeId) {
@@ -921,9 +952,13 @@ function renderInspector(nodeId) {
 
   const actions = document.createElement("div");
   actions.className = "inspector-group";
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "复制节点";
+  copyBtn.addEventListener("click", () => duplicateNode(node.id));
   const delBtn = document.createElement("button");
   delBtn.textContent = "删除节点";
   delBtn.addEventListener("click", () => deleteNode(node.id));
+  actions.appendChild(copyBtn);
   actions.appendChild(delBtn);
   els.inspector.appendChild(actions);
 
