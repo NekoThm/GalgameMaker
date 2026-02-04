@@ -187,14 +187,15 @@ class Renderer {
       this.characters.set(characterId, el);
       this.charsEl.appendChild(el);
     }
-    el.style.left = `${Math.floor((position?.x ?? 0.5) * 100)}%`;
-    el.style.bottom = "0px";
-    el.style.opacity = "1";
-    el.style.transform = `translateX(-50%) scale(${Number.isFinite(scale) ? scale : 1})`;
-
+    const posX = clamp01(position?.x ?? 0.5);
+    const posY = clamp01(position?.y ?? 0);
     const img = document.createElement("img");
     img.alt = characterId;
     img.src = appearance;
+    img.style.left = `${Math.floor(posX * 100)}%`;
+    img.style.bottom = `${Math.floor(posY * 100)}%`;
+    img.style.transform = `translateX(-50%) scale(${Number.isFinite(scale) ? scale : 1})`;
+    img.style.opacity = "1";
     el.replaceChildren(img);
   }
 }
@@ -247,6 +248,7 @@ class Game {
     this.btnSkip = $("#btnSkip");
 
     this.projectId = ir.project?.id ?? "my-game";
+    this.applyStageResolution();
 
     this.auto = false;
     /** @type {"off"|"read"|"all"} */
@@ -259,6 +261,17 @@ class Game {
 
     this.bindUI();
     this.renderStatus();
+  }
+
+  applyStageResolution() {
+    const stage = document.getElementById("stage");
+    if (!stage) return;
+    const resolution = this.ir.project?.resolution ?? {};
+    const width = Number(resolution.width ?? 1280);
+    const height = Number(resolution.height ?? 720);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+    stage.style.width = `min(100vw, ${width}px)`;
+    stage.style.aspectRatio = `${width} / ${height}`;
   }
 
   createInitialState() {

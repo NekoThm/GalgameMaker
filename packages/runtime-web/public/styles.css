@@ -60,15 +60,16 @@ body {
 
 .char {
   position: absolute;
-  bottom: 0;
-  transform: translateX(-50%);
+  inset: 0;
+  pointer-events: none;
   will-change: transform, opacity;
 }
 
 .char img {
+  position: absolute;
   display: block;
   max-height: 92%;
-  max-width: 60vw;
+  max-width: 60%;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
 }
 

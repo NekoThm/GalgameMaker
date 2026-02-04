@@ -325,6 +325,64 @@ textarea {
   color: var(--muted);
 }
 
+.scene-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 160px;
+  max-height: 260px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.35);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.scene-preview-chars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scene-preview-char {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scene-preview-char img {
+  position: absolute;
+  display: block;
+  max-height: 92%;
+  max-width: 60%;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.5));
+}
+
+.scene-preview-live2d {
+  position: absolute;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.scene-preview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scene-preview-info {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .statusbar {
   padding: 8px 12px;
   border-top: 1px solid var(--border);

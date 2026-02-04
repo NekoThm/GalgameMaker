@@ -26,11 +26,11 @@
         "renderer": "static",
         "appearance": "assets/char/g1.PNG",
         "position": {
-          "x": 0.8,
-          "y": 0.7,
+          "x": 0.7,
+          "y": 0,
           "anchor": "bottom"
         },
-        "scale": 0.4
+        "scale": 1
       }
     },
     {

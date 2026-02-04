@@ -189,6 +189,14 @@ function getNodeById(nodeId) {
   return state.graph.nodes.find((n) => n.id === nodeId) ?? null;
 }
 
+function getEntryNodeId() {
+  if (!state.graph) return null;
+  const metaId = state.graph.sceneMeta?.entryNodeId;
+  if (metaId && getNodeById(metaId)) return metaId;
+  const start = state.graph.nodes.find((n) => n.type === "Start");
+  return start?.id ?? state.graph.nodes[0]?.id ?? null;
+}
+
 function getLayoutNode(nodeId) {
   if (!state.layout || !state.layout.nodes) return null;
   return state.layout.nodes[nodeId] ?? null;
@@ -741,12 +749,24 @@ function onViewportPointerMove(event) {
 }
 
 function onViewportWheel(event) {
+  if (isEditableTarget(document.activeElement)) return;
   event.preventDefault();
+  const deltaX = Number(event.deltaX ?? 0);
+  const deltaY = Number(event.deltaY ?? 0);
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    state.viewport.x -= deltaX;
+    state.layout.viewport = { ...state.viewport };
+    state.dirtyLayout = true;
+    state.autoFit = false;
+    applyTransform();
+    return;
+  }
+  if (deltaY === 0) return;
   const rect = els.graphViewport.getBoundingClientRect();
   const cursorX = event.clientX - rect.left;
   const cursorY = event.clientY - rect.top;
   const prevZoom = state.viewport.zoom;
-  const delta = event.deltaY > 0 ? 0.9 : 1.1;
+  const delta = deltaY > 0 ? 0.9 : 1.1;
   const nextZoom = Math.max(0.2, Math.min(3, prevZoom * delta));
   if (nextZoom === prevZoom) return;
   const offsetX = state.viewport.x;
@@ -811,6 +831,8 @@ function renderInspector(nodeId) {
   if (!nodeId) {
     els.inspector.innerHTML = "<div class=\"muted\">选择一个节点以编辑</div>";
     if (els.rightPanel) els.rightPanel.classList.remove("open");
+    els.scenePreview = null;
+    els.scenePreviewInfo = null;
     return;
   }
   if (els.rightPanel) els.rightPanel.classList.add("open");
@@ -832,6 +854,8 @@ function renderInspector(nodeId) {
   delBtn.addEventListener("click", () => deleteNode(node.id));
   actions.appendChild(delBtn);
   els.inspector.appendChild(actions);
+
+  els.inspector.appendChild(createScenePreviewSection(nodeId));
 
   for (const field of schema.fields) {
     els.inspector.appendChild(createField(node, field));
@@ -1173,10 +1197,11 @@ function createLayoutSection(nodeId) {
   inputX.type = "number";
   inputX.value = pos?.x ?? 0;
   inputX.addEventListener("input", () => {
+    const current = getLayoutNode(nodeId) ?? { x: 0, y: 0 };
     const x = Number(inputX.value) || 0;
-    setLayoutNode(nodeId, { x, y: pos?.y ?? 0 });
+    setLayoutNode(nodeId, { x, y: current?.y ?? 0 });
     const nodeEl = state.nodeElements.get(nodeId);
-    if (nodeEl) nodeEl.style.left = `${x}px`;
+    if (nodeEl) nodeEl.style.left = `${x + state.canvasOffset.x}px`;
     renderEdges();
   });
 
@@ -1185,10 +1210,11 @@ function createLayoutSection(nodeId) {
   inputY.type = "number";
   inputY.value = pos?.y ?? 0;
   inputY.addEventListener("input", () => {
+    const current = getLayoutNode(nodeId) ?? { x: 0, y: 0 };
     const y = Number(inputY.value) || 0;
-    setLayoutNode(nodeId, { x: pos?.x ?? 0, y });
+    setLayoutNode(nodeId, { x: current?.x ?? 0, y });
     const nodeEl = state.nodeElements.get(nodeId);
-    if (nodeEl) nodeEl.style.top = `${y}px`;
+    if (nodeEl) nodeEl.style.top = `${y + state.canvasOffset.y}px`;
     renderEdges();
   });
 
@@ -1321,6 +1347,7 @@ function connectEdge({ fromNodeId, fromPortId, fromEdgeId, toNodeId, toPortId })
   edge.to.portId = toPortId || edge.to.portId || "in";
 
   state.dirtyGraph = true;
+  updateScenePreview();
 }
 
 function ensureSingleEdge(nodeId) {
@@ -1385,6 +1412,223 @@ function updateNodeSummary(nodeId) {
   const ports = state.nodePorts.get(nodeId);
   if (ports) layoutPorts(nodeEl, ports);
   renderEdges();
+  updateScenePreview();
+}
+
+function createScenePreviewSection(nodeId) {
+  const group = createGroup("场景预览");
+  const preview = document.createElement("div");
+  preview.className = "scene-preview";
+  const info = document.createElement("div");
+  info.className = "scene-preview-info muted";
+  group.appendChild(preview);
+  group.appendChild(info);
+  els.scenePreview = preview;
+  els.scenePreviewInfo = info;
+  renderScenePreview(nodeId);
+  return group;
+}
+
+function renderScenePreview(nodeId) {
+  const preview = els.scenePreview;
+  const info = els.scenePreviewInfo;
+  if (!preview || !state.graph) return;
+
+  const entryId = getEntryNodeId();
+  const targetId = nodeId ?? entryId;
+  const path = findPath(entryId, targetId);
+  const appliedPath = path ?? (entryId ? [entryId] : []);
+  const note = path
+    ? `入口 → ${targetId}（${appliedPath.length} 节点）`
+    : "未找到到达所选节点的路径，使用入口状态";
+
+  const previewState = computeScenePreviewState(appliedPath);
+
+  const width = Number(state.project?.resolution?.width ?? 1280);
+  const height = Number(state.project?.resolution?.height ?? 720);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    preview.style.aspectRatio = `${width} / ${height}`;
+  } else {
+    preview.style.aspectRatio = "16 / 9";
+  }
+
+  preview.innerHTML = "";
+  if (previewState.background) {
+    const bgUrl = resolveAssetUrl(previewState.background);
+    preview.style.backgroundImage = bgUrl ? `url(${bgUrl})` : "none";
+  } else {
+    preview.style.backgroundImage = "none";
+  }
+
+  const charsLayer = document.createElement("div");
+  charsLayer.className = "scene-preview-chars";
+  for (const char of previewState.characters) {
+    const charEl = document.createElement("div");
+    charEl.className = "scene-preview-char";
+    const x = clamp01(char.position?.x ?? 0.5);
+    const y = clamp01(char.position?.y ?? 0);
+    const scale = Number.isFinite(char.scale) ? char.scale : 1;
+
+    if (char.renderer === "live2d") {
+      const badge = document.createElement("div");
+      badge.className = "scene-preview-live2d";
+      badge.textContent = `${char.characterId ?? "Live2D"}`;
+      badge.style.left = `${Math.round(x * 100)}%`;
+      badge.style.bottom = `${Math.round(y * 100)}%`;
+      badge.style.transform = `translateX(-50%) scale(${scale})`;
+      charEl.appendChild(badge);
+    } else if (char.appearance) {
+      const img = document.createElement("img");
+      img.alt = char.characterId ?? "";
+      img.src = resolveAssetUrl(char.appearance);
+      img.style.left = `${Math.round(x * 100)}%`;
+      img.style.bottom = `${Math.round(y * 100)}%`;
+      img.style.transform = `translateX(-50%) scale(${scale})`;
+      charEl.appendChild(img);
+    }
+    if (charEl.childElementCount > 0) charsLayer.appendChild(charEl);
+  }
+  preview.appendChild(charsLayer);
+
+  if (!previewState.background && previewState.characters.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "scene-preview-empty";
+    empty.textContent = "该路径未设置背景或立绘";
+    preview.appendChild(empty);
+  }
+
+  if (info) info.textContent = note;
+}
+
+function updateScenePreview() {
+  if (!els.scenePreview || !state.graph) return;
+  const nodeId = state.selectedNodeId ?? getEntryNodeId();
+  renderScenePreview(nodeId);
+}
+
+function resolveAssetUrl(assetPath) {
+  if (!assetPath) return "";
+  if (assetPath.startsWith("data:")) return assetPath;
+  if (/^https?:\/\//i.test(assetPath)) return assetPath;
+  if (assetPath.startsWith("file://")) return assetPath;
+  if (assetPath.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(assetPath)) {
+    return toFileUrl(assetPath);
+  }
+  if (!state.projectDir || !api) return assetPath;
+  const abs = api.pathJoin(state.projectDir, assetPath);
+  return toFileUrl(abs);
+}
+
+function toFileUrl(filePath) {
+  const normalized = String(filePath).replace(/\\/g, "/");
+  const prefix = normalized.startsWith("/") ? "file://" : "file:///";
+  return encodeURI(prefix + normalized);
+}
+
+function clamp01(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+function findPath(entryId, targetId) {
+  if (!entryId) return null;
+  if (!targetId || entryId === targetId) return [entryId];
+  const queue = [entryId];
+  const visited = new Set([entryId]);
+  const prev = new Map();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const nexts = getNextNodeIds(current);
+    for (const next of nexts) {
+      if (!next || visited.has(next)) continue;
+      visited.add(next);
+      prev.set(next, current);
+      if (next === targetId) {
+        const path = [next];
+        let p = current;
+        while (p) {
+          path.push(p);
+          p = prev.get(p);
+        }
+        return path.reverse();
+      }
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+function getNextNodeIds(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return [];
+  const type = node.type ?? "Unknown";
+  if (type === "Jump") {
+    const labelName = node.data?.targetLabel;
+    const labelNode = state.graph.nodes.find((n) => n.type === "Label" && n.data?.name === labelName);
+    if (labelNode?.id) return [labelNode.id];
+  }
+  const edges = getOutgoingEdges(nodeId);
+  const ordered = edges.slice();
+  if (type === "Branch") {
+    const order = { then: 0, else: 1 };
+    ordered.sort((a, b) => {
+      const ai = order[a?.from?.portId] ?? 9;
+      const bi = order[b?.from?.portId] ?? 9;
+      if (ai !== bi) return ai - bi;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  } else if (type === "Choice") {
+    const getIndex = (portId) => {
+      if (portId === "out") return 0;
+      if (typeof portId === "string" && portId.startsWith("out-")) {
+        const idx = Number(portId.split("-")[1]);
+        return Number.isFinite(idx) ? idx : 999;
+      }
+      return 999;
+    };
+    ordered.sort((a, b) => {
+      const ai = getIndex(a?.from?.portId);
+      const bi = getIndex(b?.from?.portId);
+      if (ai !== bi) return ai - bi;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  } else {
+    ordered.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  }
+  return ordered.map((e) => e?.to?.nodeId).filter(Boolean);
+}
+
+function computeScenePreviewState(path) {
+  const background = { value: "" };
+  const characters = new Map();
+  for (const nodeId of path) {
+    const node = getNodeById(nodeId);
+    if (!node) continue;
+    if (node.type === "Background") {
+      background.value = node.data?.background ?? "";
+      continue;
+    }
+    if (node.type === "Character") {
+      const characterId = node.data?.characterId ?? "";
+      if (!characterId) continue;
+      const action = node.data?.action ?? "show";
+      if (action === "hide") {
+        characters.delete(characterId);
+        continue;
+      }
+      characters.set(characterId, {
+        characterId,
+        renderer: node.data?.renderer ?? "static",
+        appearance: node.data?.appearance ?? "",
+        position: node.data?.position ?? { x: 0.5, y: 0 },
+        scale: Number(node.data?.scale ?? 1)
+      });
+    }
+  }
+  return {
+    background: background.value,
+    characters: Array.from(characters.values())
+  };
 }
 
 function updateChoicePortLabels(nodeId) {
@@ -1668,12 +1912,31 @@ if (!api) {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Delete" || e.key === "Backspace") {
+      if (isEditableTarget(e.target)) return;
       if (state.selectedNodeId) {
         deleteNode(state.selectedNodeId);
       }
     }
   });
+  document.addEventListener(
+    "wheel",
+    (e) => {
+      if (isEditableTarget(document.activeElement)) {
+        e.stopPropagation();
+      }
+    },
+    { capture: true, passive: true }
+  );
   populateNodeTypeSelect();
+}
+
+function isEditableTarget(target) {
+  if (!target || target === document.body || target === document.documentElement) return false;
+  const el = /** @type {HTMLElement} */ (target);
+  if (el.isContentEditable) return true;
+  const tag = el.tagName?.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
+  return Boolean(el.closest?.("input, textarea, select, [contenteditable=\"true\"]"));
 }
 
 function fitToView(force) {
