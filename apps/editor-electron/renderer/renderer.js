@@ -31,6 +31,9 @@ const els = {
 els.sceneModal = document.getElementById("sceneModal");
 els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
 els.sceneIdInput = document.getElementById("sceneIdInput");
+els.scenePreviewPanel = document.getElementById("scenePreviewPanel");
+els.scenePreview = document.getElementById("scenePreview");
+els.scenePreviewInfo = document.getElementById("scenePreviewInfo");
 
 const state = {
   projectDir: null,
@@ -927,6 +930,7 @@ function selectNode(nodeId) {
   }
   renderEdges();
   renderInspector(nodeId);
+  updateScenePreview();
 }
 
 function renderInspector(nodeId) {
@@ -934,8 +938,6 @@ function renderInspector(nodeId) {
   if (!nodeId) {
     els.inspector.innerHTML = "<div class=\"muted\">选择一个节点以编辑</div>";
     if (els.rightPanel) els.rightPanel.classList.remove("open");
-    els.scenePreview = null;
-    els.scenePreviewInfo = null;
     return;
   }
   if (els.rightPanel) els.rightPanel.classList.add("open");
@@ -961,8 +963,6 @@ function renderInspector(nodeId) {
   actions.appendChild(copyBtn);
   actions.appendChild(delBtn);
   els.inspector.appendChild(actions);
-
-  els.inspector.appendChild(createScenePreviewSection(nodeId));
 
   for (const field of schema.fields) {
     els.inspector.appendChild(createField(node, field));
@@ -1599,20 +1599,6 @@ function updateNodeSummary(nodeId) {
   updateScenePreview();
 }
 
-function createScenePreviewSection(nodeId) {
-  const group = createGroup("场景预览");
-  const preview = document.createElement("div");
-  preview.className = "scene-preview";
-  const info = document.createElement("div");
-  info.className = "scene-preview-info muted";
-  group.appendChild(preview);
-  group.appendChild(info);
-  els.scenePreview = preview;
-  els.scenePreviewInfo = info;
-  renderScenePreview(nodeId);
-  return group;
-}
-
 function renderScenePreview(nodeId) {
   const preview = els.scenePreview;
   const info = els.scenePreviewInfo;
@@ -2020,6 +2006,7 @@ async function loadScene(scene) {
     }
     renderGraph();
     renderInspector(null);
+    updateScenePreview();
     if (state.autoFit) fitToView(true);
     else applyTransform();
     setStatus(`已打开场景：${scene.id}`);
