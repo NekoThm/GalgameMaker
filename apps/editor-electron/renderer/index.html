@@ -31,6 +31,9 @@
           <div class="panel-title">场景列表</div>
           <div id="sceneList" class="list"></div>
           <button id="btnAddScene" class="secondary">新增场景</button>
+          <div class="panel-title">变量</div>
+          <div id="variablesList" class="list"></div>
+          <button id="btnAddVar" class="secondary">新增变量</button>
           <div class="panel-title">导出目录</div>
           <input id="outDir" class="input" placeholder="默认：<项目>/build/web" />
           <button id="btnChooseOut" class="secondary">选择导出目录</button>
@@ -71,6 +74,36 @@
         <div class="modal-actions">
           <button id="btnSceneCreateOk">创建</button>
           <button id="btnSceneCreateCancel" class="secondary">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="varModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-title">新增变量</div>
+        <input id="varNameInput" class="input" placeholder="变量名" />
+        <select id="varTypeSelect" class="input">
+          <option value="flag">flag</option>
+          <option value="number">number</option>
+          <option value="enum">enum</option>
+        </select>
+        <input id="varDefaultInput" class="input" placeholder="默认值" />
+        <select id="varEnumDefaultSelect" class="input" hidden></select>
+        <select id="varFlagDefaultSelect" class="input" hidden>
+          <option value="true">true</option>
+          <option value="false" selected>false</option>
+        </select>
+        <div id="varEnumEditor" class="enum-editor" hidden>
+          <div class="enum-input">
+            <input id="varEnumValueInput" class="input" placeholder="枚举值" />
+            <button id="btnAddEnumValue" type="button">添加</button>
+          </div>
+          <div id="varEnumList" class="enum-list"></div>
+        </div>
+        <div class="modal-actions">
+          <button id="btnVarCreateOk">创建</button>
+          <button id="btnVarCreateCancel" class="secondary">取消</button>
         </div>
       </div>
     </div>

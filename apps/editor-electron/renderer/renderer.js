@@ -17,6 +17,19 @@ const els = {
   nodeTypeSelect: document.getElementById("nodeTypeSelect"),
   projectPath: document.getElementById("projectPath"),
   sceneList: document.getElementById("sceneList"),
+  variablesList: document.getElementById("variablesList"),
+  varNameInput: document.getElementById("varNameInput"),
+  varTypeSelect: document.getElementById("varTypeSelect"),
+  varDefaultInput: document.getElementById("varDefaultInput"),
+  varEnumDefaultSelect: document.getElementById("varEnumDefaultSelect"),
+  varFlagDefaultSelect: document.getElementById("varFlagDefaultSelect"),
+  varEnumEditor: document.getElementById("varEnumEditor"),
+  varEnumValueInput: document.getElementById("varEnumValueInput"),
+  btnAddEnumValue: document.getElementById("btnAddEnumValue"),
+  varEnumList: document.getElementById("varEnumList"),
+  btnVarCreateOk: document.getElementById("btnVarCreateOk"),
+  btnVarCreateCancel: document.getElementById("btnVarCreateCancel"),
+  btnAddVar: document.getElementById("btnAddVar"),
   diagnostics: document.getElementById("diagnostics"),
   outDir: document.getElementById("outDir"),
   status: document.getElementById("status"),
@@ -31,6 +44,8 @@ const els = {
 els.sceneModal = document.getElementById("sceneModal");
 els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
 els.sceneIdInput = document.getElementById("sceneIdInput");
+els.varModal = document.getElementById("varModal");
+els.varModalBackdrop = document.querySelector("#varModal .modal-backdrop");
 els.scenePreviewPanel = document.getElementById("scenePreviewPanel");
 els.scenePreview = document.getElementById("scenePreview");
 els.scenePreviewInfo = document.getElementById("scenePreviewInfo");
@@ -52,7 +67,8 @@ const state = {
   canvasOffset: { x: 0, y: 0 },
   viewport: { x: 0, y: 0, zoom: 1 },
   autoFit: true,
-  connecting: null
+  connecting: null,
+  enumDraft: []
 };
 
 const NODE_SCHEMA = {
@@ -1848,11 +1864,244 @@ async function loadProject(projectDir) {
     els.projectPath.textContent = projectDir;
     els.outDir.value = api.pathJoin(projectDir, "build", "web");
     await renderScenes();
+    renderVariables();
     clearDiagnostics();
     setStatus("项目已加载");
   } catch (e) {
     setStatus(`加载失败：${e?.message ?? e}`, "error");
   }
+}
+
+function getVariablesPath() {
+  if (!state.projectDir || !api) return null;
+  return api.pathJoin(state.projectDir, "variables.json");
+}
+
+function setVarFormByType(type) {
+  if (!els.varDefaultInput) return;
+  if (type === "flag") {
+    els.varDefaultInput.hidden = true;
+    if (els.varEnumDefaultSelect) els.varEnumDefaultSelect.hidden = true;
+    if (els.varFlagDefaultSelect) els.varFlagDefaultSelect.hidden = false;
+    if (els.varEnumEditor) els.varEnumEditor.hidden = true;
+  } else if (type === "enum") {
+    els.varDefaultInput.hidden = true;
+    if (els.varEnumDefaultSelect) els.varEnumDefaultSelect.hidden = false;
+    if (els.varFlagDefaultSelect) els.varFlagDefaultSelect.hidden = true;
+    if (els.varEnumEditor) els.varEnumEditor.hidden = false;
+  } else {
+    els.varDefaultInput.hidden = false;
+    if (els.varEnumDefaultSelect) els.varEnumDefaultSelect.hidden = true;
+    if (els.varFlagDefaultSelect) els.varFlagDefaultSelect.hidden = true;
+    if (els.varEnumEditor) els.varEnumEditor.hidden = true;
+  }
+}
+
+function normalizeEnumValue(value) {
+  return String(value ?? "").trim();
+}
+
+function renderEnumDraft() {
+  if (!els.varEnumList) return;
+  els.varEnumList.innerHTML = "";
+  const values = Array.isArray(state.enumDraft) ? state.enumDraft : [];
+  updateEnumDefaultSelect(values);
+  if (values.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "暂无枚举值";
+    els.varEnumList.appendChild(empty);
+    return;
+  }
+  for (const value of values) {
+    const row = document.createElement("div");
+    row.className = "enum-row";
+    const label = document.createElement("div");
+    label.textContent = value;
+    const del = document.createElement("button");
+    del.className = "secondary";
+    del.textContent = "删除";
+    del.addEventListener("click", () => {
+      state.enumDraft = values.filter((v) => v !== value);
+      renderEnumDraft();
+    });
+    row.appendChild(label);
+    row.appendChild(del);
+    els.varEnumList.appendChild(row);
+  }
+}
+
+function updateEnumDefaultSelect(values) {
+  if (!els.varEnumDefaultSelect) return;
+  const list = Array.isArray(values) ? values : [];
+  const current = els.varEnumDefaultSelect.value;
+  els.varEnumDefaultSelect.innerHTML = "";
+  if (list.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "请先添加枚举值";
+    els.varEnumDefaultSelect.appendChild(opt);
+    els.varEnumDefaultSelect.disabled = true;
+    return;
+  }
+  for (const value of list) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = value;
+    els.varEnumDefaultSelect.appendChild(opt);
+  }
+  els.varEnumDefaultSelect.disabled = false;
+  if (current && list.includes(current)) els.varEnumDefaultSelect.value = current;
+  else els.varEnumDefaultSelect.value = list[0];
+}
+
+function addEnumValue() {
+  const raw = normalizeEnumValue(els.varEnumValueInput?.value);
+  if (!raw) {
+    setStatus("请输入枚举值", "warn");
+    return;
+  }
+  if (!Array.isArray(state.enumDraft)) state.enumDraft = [];
+  if (state.enumDraft.includes(raw)) {
+    setStatus(`枚举值已存在：${raw}`, "warn");
+    return;
+  }
+  state.enumDraft = [...state.enumDraft, raw];
+  if (els.varEnumValueInput) {
+    els.varEnumValueInput.value = "";
+    els.varEnumValueInput.focus();
+  }
+  renderEnumDraft();
+}
+
+function setFlagSelect(value) {
+  if (!els.varFlagDefaultSelect) return;
+  const normalized = value === true || value === "true" ? "true" : "false";
+  els.varFlagDefaultSelect.value = normalized;
+}
+
+function getFlagSelectValue() {
+  if (!els.varFlagDefaultSelect) return false;
+  return String(els.varFlagDefaultSelect.value) === "true";
+}
+
+async function saveVariables() {
+  const path = getVariablesPath();
+  if (!path) return;
+  await api.writeJson(path, state.variables ?? {});
+}
+
+function renderVariables() {
+  if (!els.variablesList) return;
+  els.variablesList.innerHTML = "";
+  const vars = state.variables && typeof state.variables === "object" ? state.variables : {};
+  const names = Object.keys(vars).sort((a, b) => a.localeCompare(b));
+  if (names.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "暂无变量";
+    els.variablesList.appendChild(empty);
+    return;
+  }
+  for (const name of names) {
+    const def = vars[name] ?? {};
+    const row = document.createElement("div");
+    row.className = "var-row";
+    const label = document.createElement("div");
+    const type = def.type ?? "unknown";
+    const value = "default" in def ? def.default : "";
+    label.innerHTML = `<div>${escapeHtml(name)}</div><div class="muted">${escapeHtml(type)} · ${escapeHtml(String(value))}</div>`;
+    const del = document.createElement("button");
+    del.className = "secondary";
+    del.textContent = "删除";
+    del.addEventListener("click", async () => {
+      delete state.variables[name];
+      await saveVariables();
+      renderVariables();
+      renderInspector(state.selectedNodeId);
+      setStatus(`已删除变量：${name}`);
+    });
+    row.appendChild(label);
+    row.appendChild(del);
+    els.variablesList.appendChild(row);
+  }
+}
+
+function resetVarForm() {
+  if (els.varNameInput) els.varNameInput.value = "";
+  if (els.varDefaultInput) els.varDefaultInput.value = "";
+  setFlagSelect(false);
+  state.enumDraft = [];
+  if (els.varEnumValueInput) els.varEnumValueInput.value = "";
+  renderEnumDraft();
+  if (els.varTypeSelect) {
+    if (!els.varTypeSelect.value) els.varTypeSelect.value = "flag";
+    setVarFormByType(els.varTypeSelect.value);
+  }
+}
+
+function openVarCreate() {
+  if (!state.projectDir) {
+    setStatus("未打开项目", "warn");
+    return;
+  }
+  if (!els.varModal) return;
+  resetVarForm();
+  els.varModal.hidden = false;
+  if (els.varNameInput) {
+    els.varNameInput.focus();
+    els.varNameInput.select();
+  }
+}
+
+function closeVarCreate() {
+  if (!els.varModal) return;
+  els.varModal.hidden = true;
+  resetVarForm();
+}
+
+async function confirmVarCreate() {
+  if (!state.projectDir) {
+    setStatus("未打开项目", "warn");
+    return;
+  }
+  const name = String(els.varNameInput?.value ?? "").trim();
+  if (!name) {
+    setStatus("请输入变量名", "warn");
+    return;
+  }
+  if (!/^[a-zA-Z0-9_\\-]+$/.test(name)) {
+    setStatus("变量名仅允许字母/数字/下划线/短横线", "warn");
+    return;
+  }
+  if (!state.variables || typeof state.variables !== "object") state.variables = {};
+  if (state.variables[name]) {
+    setStatus(`变量已存在：${name}`, "warn");
+    return;
+  }
+  const type = els.varTypeSelect?.value ?? "flag";
+  let def = { type };
+  if (type === "flag") {
+    def.default = getFlagSelectValue();
+  } else if (type === "number") {
+    const num = Number(els.varDefaultInput?.value ?? 0);
+    def.default = Number.isFinite(num) ? num : 0;
+  } else if (type === "enum") {
+    const values = Array.isArray(state.enumDraft) ? state.enumDraft : [];
+    if (values.length === 0) {
+      setStatus("请添加枚举值", "warn");
+      return;
+    }
+    def.enumValues = values;
+    const selected = String(els.varEnumDefaultSelect?.value ?? "");
+    def.default = values.includes(selected) ? selected : values[0] ?? "";
+  }
+  state.variables[name] = def;
+  await saveVariables();
+  renderVariables();
+  renderInspector(state.selectedNodeId);
+  closeVarCreate();
+  setStatus(`已新增变量：${name}`);
 }
 
 async function renderScenes(selectedSceneId = null) {
@@ -2114,6 +2363,7 @@ function disableActions() {
     els.btnFormat,
     els.btnAddNode,
     els.btnAddScene,
+    els.btnAddVar,
     els.btnSave,
     els.btnCompile,
     els.btnExport,
@@ -2172,6 +2422,49 @@ if (!api) {
   els.btnExport.addEventListener("click", exportWeb);
   els.btnPreview.addEventListener("click", previewWeb);
   els.btnChooseOut.addEventListener("click", chooseOutDir);
+  if (els.varTypeSelect) {
+    els.varTypeSelect.addEventListener("change", () => {
+      setVarFormByType(els.varTypeSelect.value);
+    });
+    setVarFormByType(els.varTypeSelect.value);
+  }
+  if (els.varFlagDefaultSelect) {
+    setFlagSelect(false);
+  }
+  if (els.btnAddEnumValue) {
+    els.btnAddEnumValue.addEventListener("click", addEnumValue);
+  }
+  if (els.varEnumValueInput) {
+    els.varEnumValueInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addEnumValue();
+      }
+    });
+  }
+  if (els.btnAddVar) {
+    els.btnAddVar.addEventListener("click", openVarCreate);
+  }
+  if (els.btnVarCreateOk) {
+    els.btnVarCreateOk.addEventListener("click", confirmVarCreate);
+  }
+  if (els.btnVarCreateCancel) {
+    els.btnVarCreateCancel.addEventListener("click", closeVarCreate);
+  }
+  if (els.varModalBackdrop) {
+    els.varModalBackdrop.addEventListener("click", closeVarCreate);
+  }
+  if (els.varModal) {
+    els.varModal.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeVarCreate();
+      }
+      if (e.key === "Enter") {
+        confirmVarCreate();
+      }
+    });
+  }
   clearDiagnostics();
   els.graphViewport.addEventListener("click", (e) => {
     if (

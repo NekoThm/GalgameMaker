@@ -1,13 +1,7 @@
 {
-  "metHeroine": {
-    "type": "flag",
-    "default": false,
-    "description": "是否已经见过女主"
-  },
   "affection": {
     "type": "number",
     "default": 0,
     "description": "好感度（示例）"
   }
 }
-

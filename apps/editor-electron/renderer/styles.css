@@ -120,6 +120,45 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.var-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.var-row .muted {
+  font-size: 11px;
+}
+
+.enum-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.enum-editor[hidden] {
+  display: none;
+}
+
+.enum-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.enum-list {
+  display: grid;
+  gap: 6px;
+}
+
+.enum-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
 .modal {
   position: fixed;
   inset: 0;
