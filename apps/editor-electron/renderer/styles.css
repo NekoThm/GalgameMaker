@@ -131,6 +131,11 @@ button:disabled {
   font-size: 11px;
 }
 
+.var-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .enum-editor {
   display: grid;
   gap: 8px;

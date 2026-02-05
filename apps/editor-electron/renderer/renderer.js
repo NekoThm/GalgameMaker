@@ -46,6 +46,7 @@ els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
 els.sceneIdInput = document.getElementById("sceneIdInput");
 els.varModal = document.getElementById("varModal");
 els.varModalBackdrop = document.querySelector("#varModal .modal-backdrop");
+els.varModalTitle = document.getElementById("varModalTitle");
 els.scenePreviewPanel = document.getElementById("scenePreviewPanel");
 els.scenePreview = document.getElementById("scenePreview");
 els.scenePreviewInfo = document.getElementById("scenePreviewInfo");
@@ -68,7 +69,8 @@ const state = {
   viewport: { x: 0, y: 0, zoom: 1 },
   autoFit: true,
   connecting: null,
-  enumDraft: []
+  enumDraft: [],
+  editingVarName: null
 };
 
 const NODE_SCHEMA = {
@@ -2011,6 +2013,12 @@ function renderVariables() {
     const type = def.type ?? "unknown";
     const value = "default" in def ? def.default : "";
     label.innerHTML = `<div>${escapeHtml(name)}</div><div class="muted">${escapeHtml(type)} · ${escapeHtml(String(value))}</div>`;
+    row.appendChild(label);
+    const actions = document.createElement("div");
+    actions.className = "var-actions";
+    const edit = document.createElement("button");
+    edit.textContent = "编辑";
+    edit.addEventListener("click", () => openVarEdit(name));
     const del = document.createElement("button");
     del.className = "secondary";
     del.textContent = "删除";
@@ -2021,8 +2029,9 @@ function renderVariables() {
       renderInspector(state.selectedNodeId);
       setStatus(`已删除变量：${name}`);
     });
-    row.appendChild(label);
-    row.appendChild(del);
+    actions.appendChild(edit);
+    actions.appendChild(del);
+    row.appendChild(actions);
     els.variablesList.appendChild(row);
   }
 }
@@ -2034,6 +2043,7 @@ function resetVarForm() {
   state.enumDraft = [];
   if (els.varEnumValueInput) els.varEnumValueInput.value = "";
   renderEnumDraft();
+  if (els.varEnumDefaultSelect) els.varEnumDefaultSelect.value = "";
   if (els.varTypeSelect) {
     if (!els.varTypeSelect.value) els.varTypeSelect.value = "flag";
     setVarFormByType(els.varTypeSelect.value);
@@ -2046,6 +2056,9 @@ function openVarCreate() {
     return;
   }
   if (!els.varModal) return;
+  state.editingVarName = null;
+  if (els.varModalTitle) els.varModalTitle.textContent = "新增变量";
+  if (els.varNameInput) els.varNameInput.disabled = false;
   resetVarForm();
   els.varModal.hidden = false;
   if (els.varNameInput) {
@@ -2054,9 +2067,44 @@ function openVarCreate() {
   }
 }
 
+function openVarEdit(name) {
+  if (!state.projectDir) {
+    setStatus("未打开项目", "warn");
+    return;
+  }
+  const def = state.variables?.[name];
+  if (!def) return;
+  state.editingVarName = name;
+  if (!els.varModal) return;
+  if (els.varModalTitle) els.varModalTitle.textContent = "编辑变量";
+  if (els.varNameInput) {
+    els.varNameInput.value = name;
+    els.varNameInput.disabled = true;
+  }
+  const type = typeof def.type === "string" ? def.type : "flag";
+  if (els.varTypeSelect) els.varTypeSelect.value = type;
+  setVarFormByType(type);
+  if (type === "flag") {
+    setFlagSelect(Boolean(def.default));
+  } else if (type === "number") {
+    if (els.varDefaultInput) els.varDefaultInput.value = String(def.default ?? 0);
+  } else if (type === "enum") {
+    state.enumDraft = Array.isArray(def.enumValues) ? [...def.enumValues] : [];
+    renderEnumDraft();
+    const defaultValue = String(def.default ?? "");
+    if (els.varEnumDefaultSelect && state.enumDraft.includes(defaultValue)) {
+      els.varEnumDefaultSelect.value = defaultValue;
+    }
+  }
+  els.varModal.hidden = false;
+}
+
 function closeVarCreate() {
   if (!els.varModal) return;
   els.varModal.hidden = true;
+  state.editingVarName = null;
+  if (els.varModalTitle) els.varModalTitle.textContent = "新增变量";
+  if (els.varNameInput) els.varNameInput.disabled = false;
   resetVarForm();
 }
 
@@ -2065,17 +2113,18 @@ async function confirmVarCreate() {
     setStatus("未打开项目", "warn");
     return;
   }
-  const name = String(els.varNameInput?.value ?? "").trim();
+  const editing = Boolean(state.editingVarName);
+  const name = editing ? String(state.editingVarName) : String(els.varNameInput?.value ?? "").trim();
   if (!name) {
     setStatus("请输入变量名", "warn");
     return;
   }
-  if (!/^[a-zA-Z0-9_\\-]+$/.test(name)) {
+  if (!editing && !/^[a-zA-Z0-9_\\-]+$/.test(name)) {
     setStatus("变量名仅允许字母/数字/下划线/短横线", "warn");
     return;
   }
   if (!state.variables || typeof state.variables !== "object") state.variables = {};
-  if (state.variables[name]) {
+  if (!editing && state.variables[name]) {
     setStatus(`变量已存在：${name}`, "warn");
     return;
   }
@@ -2101,7 +2150,7 @@ async function confirmVarCreate() {
   renderVariables();
   renderInspector(state.selectedNodeId);
   closeVarCreate();
-  setStatus(`已新增变量：${name}`);
+  setStatus(editing ? `已更新变量：${name}` : `已新增变量：${name}`);
 }
 
 async function renderScenes(selectedSceneId = null) {

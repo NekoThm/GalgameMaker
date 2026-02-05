@@ -1,7 +1,6 @@
 {
   "affection": {
     "type": "number",
-    "default": 0,
-    "description": "好感度（示例）"
+    "default": 0
   }
 }
