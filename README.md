@@ -452,3 +452,41 @@ npm run dev:editor
 - 默认不提交 `.layout.json`（布局文件频繁变化），他人首次打开会自动生成布局
 - 后续阶段会替换为更完整的节点图交互，但编译器与运行时不需要改动
 - 请不要直接双击打开 `apps/editor-electron/renderer/index.html`，否则 `window.editorApi` 不会注入，按钮将不可用
+
+---
+
+## 19. Electron Player（macOS 运行与打包）
+
+用途：将导出的 Web 产物作为桌面应用运行（避免 `file://` 限制），并可打包为 macOS `.app/.dmg`。
+
+### 19.1 本地运行（开发）
+
+```bash
+npm run build:web
+npm run dev:player
+```
+
+或指定任意导出目录：
+
+```bash
+npx electron "apps/player-electron" -- --content "<导出目录>"
+```
+
+可选参数：
+- `--content` / `--dir`：导出目录
+- `--port`：指定本地端口（默认自动）
+- `GALGAME_CONTENT_DIR`：环境变量指定导出目录
+
+### 19.2 打包为 macOS App（空壳）
+
+打包结果为 **通用空壳**（不内置游戏数据），首次打开会弹出“选择导出目录”，可运行任何由本编辑器导出的 Web 产物。
+
+步骤（最简）：
+```bash
+cd "apps/player-electron"
+npm install -D electron-builder
+npx electron-builder --mac
+```
+
+说明：
+- 该模式不包含游戏数据，运行时需要手动选择导出目录（包含 `index.html/game.ir.json/manifest.json`）。

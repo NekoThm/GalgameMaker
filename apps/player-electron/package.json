@@ -1,0 +1,19 @@
+{
+  "name": "galgame-player-electron",
+  "version": "0.1.0",
+  "description": "Galgame Electron Player",
+  "author": "linziqing",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "32.1.2",
+    "electron-builder": "^26.7.0"
+  },
+  "build": {
+    "electronVersion": "32.1.2"
+  }
+}
