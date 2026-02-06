@@ -87,6 +87,17 @@
         "sceneId": "scene_002",
         "nodeId": ""
       }
+    },
+    {
+      "id": "n_bgm",
+      "type": "BGM",
+      "data": {
+        "audio": "assets/bgm/bg.mp3",
+        "action": "play",
+        "volume": 1,
+        "loop": true,
+        "fadeMs": 0
+      }
     }
   ],
   "edges": [
@@ -97,7 +108,7 @@
         "portId": "out"
       },
       "to": {
-        "nodeId": "n_char_show",
+        "nodeId": "n_bgm",
         "portId": "in"
       }
     },
@@ -217,6 +228,17 @@
       },
       "to": {
         "nodeId": "n_choice_1",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_bgm_out_1770375988152",
+      "from": {
+        "nodeId": "n_bgm",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_char_show",
         "portId": "in"
       }
     }
