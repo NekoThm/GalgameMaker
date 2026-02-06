@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import path from "node:path";
 import http from "node:http";
-import { readFile, writeFile, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
 import { existsSync, createReadStream, statSync } from "node:fs";
 import { exportWeb } from "../../packages/export-web/exporter.js";
 import { compileProjectFromDir } from "../../packages/core/src/project-compiler.js";
@@ -99,6 +99,10 @@ async function writeJson(filePath, data) {
   await writeFile(filePath, text, "utf-8");
 }
 
+async function ensureDir(dirPath) {
+  await mkdir(dirPath, { recursive: true });
+}
+
 contextBridge.exposeInMainWorld("editorApi", {
   selectProjectDir: () => ipcRenderer.invoke("select-project"),
   selectOutputDir: (defaultPath) => ipcRenderer.invoke("select-output", defaultPath),
@@ -106,6 +110,7 @@ contextBridge.exposeInMainWorld("editorApi", {
   pathBasename: (p) => path.basename(p),
   readJson,
   writeJson,
+  ensureDir,
   readText: (filePath) => readFile(filePath, "utf-8"),
   stat: (filePath) => stat(filePath),
   compileProject: async (projectDir) => {
@@ -123,4 +128,3 @@ contextBridge.exposeInMainWorld("editorApi", {
     return await startPreviewServer(outDir);
   }
 });
-

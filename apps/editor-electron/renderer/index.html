@@ -10,6 +10,7 @@
     <div id="app">
       <header class="toolbar">
         <div class="toolbar-left">
+          <button id="btnNewProject">新建项目</button>
           <button id="btnOpen">打开项目</button>
           <span id="projectPath" class="muted">未打开项目</span>
         </div>
@@ -74,6 +75,23 @@
         <div class="modal-actions">
           <button id="btnSceneCreateOk">创建</button>
           <button id="btnSceneCreateCancel" class="secondary">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="projectModal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="modal-title">新建项目</div>
+        <input id="projectNameInput" class="input" placeholder="项目名称" />
+        <div class="modal-row">
+          <button id="btnChooseProjectDir" class="secondary">选择目录</button>
+        </div>
+        <div id="projectDirInput" class="path-display">未选择目录</div>
+        <div id="projectPathHint" class="muted"></div>
+        <div class="modal-actions">
+          <button id="btnProjectCreateOk">创建</button>
+          <button id="btnProjectCreateCancel" class="secondary">取消</button>
         </div>
       </div>
     </div>

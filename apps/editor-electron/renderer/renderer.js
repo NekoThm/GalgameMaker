@@ -2,6 +2,7 @@ const api = window.editorApi ?? null;
 
 const els = {
   btnOpen: document.getElementById("btnOpen"),
+  btnNewProject: document.getElementById("btnNewProject"),
   btnToggleLeft: document.getElementById("btnToggleLeft"),
   btnReload: document.getElementById("btnReload"),
   btnFormat: document.getElementById("btnFormat"),
@@ -44,6 +45,14 @@ const els = {
 els.sceneModal = document.getElementById("sceneModal");
 els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
 els.sceneIdInput = document.getElementById("sceneIdInput");
+els.projectModal = document.getElementById("projectModal");
+els.projectModalBackdrop = document.querySelector("#projectModal .modal-backdrop");
+els.projectNameInput = document.getElementById("projectNameInput");
+els.projectDirInput = document.getElementById("projectDirInput");
+els.projectPathHint = document.getElementById("projectPathHint");
+els.btnChooseProjectDir = document.getElementById("btnChooseProjectDir");
+els.btnProjectCreateOk = document.getElementById("btnProjectCreateOk");
+els.btnProjectCreateCancel = document.getElementById("btnProjectCreateCancel");
 els.varModal = document.getElementById("varModal");
 els.varModalBackdrop = document.querySelector("#varModal .modal-backdrop");
 els.varModalTitle = document.getElementById("varModalTitle");
@@ -70,7 +79,8 @@ const state = {
   autoFit: true,
   connecting: null,
   enumDraft: [],
-  editingVarName: null
+  editingVarName: null,
+  newProjectDir: null
 };
 
 const NODE_SCHEMA = {
@@ -1843,6 +1853,123 @@ function updateChoicePortLabels(nodeId) {
   updateChoiceInlineList(nodeId);
 }
 
+function sanitizeProjectId(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+  const sanitized = raw
+    .toLowerCase()
+    .replaceAll(/\s+/g, "_")
+    .replaceAll(/[^a-z0-9_\\-]+/g, "_")
+    .replaceAll(/_+/g, "_")
+    .replaceAll(/^_+|_+$/g, "");
+  return sanitized || "";
+}
+
+function buildProjectFolderName(name) {
+  const base = sanitizeProjectId(name);
+  if (base) return base;
+  return `project_${Date.now()}`;
+}
+
+function updateProjectPathHint() {
+  if (!els.projectPathHint) return;
+  const name = String(els.projectNameInput?.value ?? "").trim();
+  const dir = state.newProjectDir;
+  if (!dir) {
+    els.projectPathHint.textContent = "请选择目录";
+    return;
+  }
+  const folder = buildProjectFolderName(name || "project");
+  els.projectPathHint.textContent = `将创建目录：${api.pathJoin(dir, folder)}`;
+}
+
+async function chooseProjectDir() {
+  if (!api) return;
+  const dir = await api.selectOutputDir(state.newProjectDir ?? state.projectDir ?? undefined);
+  if (!dir) return;
+  state.newProjectDir = dir;
+  if (els.projectDirInput) els.projectDirInput.textContent = dir;
+  updateProjectPathHint();
+}
+
+function openProjectCreate() {
+  if (!api) return;
+  if (!els.projectModal) return;
+  state.newProjectDir = null;
+  if (els.projectNameInput) els.projectNameInput.value = "";
+  if (els.projectDirInput) els.projectDirInput.textContent = "未选择目录";
+  updateProjectPathHint();
+  els.projectModal.hidden = false;
+  if (els.projectNameInput) {
+    els.projectNameInput.focus();
+    els.projectNameInput.select();
+  }
+}
+
+function closeProjectCreate() {
+  if (!els.projectModal) return;
+  els.projectModal.hidden = true;
+  state.newProjectDir = null;
+}
+
+async function confirmProjectCreate() {
+  if (!api) return;
+  const name = String(els.projectNameInput?.value ?? "").trim();
+  if (!name) {
+    setStatus("请输入项目名称", "warn");
+    return;
+  }
+  const parentDir = state.newProjectDir;
+  if (!parentDir) {
+    setStatus("请选择项目目录", "warn");
+    return;
+  }
+  const folder = buildProjectFolderName(name);
+  const projectDir = api.pathJoin(parentDir, folder);
+  try {
+    await api.stat(projectDir);
+    setStatus(`目录已存在：${projectDir}`, "warn");
+    return;
+  } catch {
+    // 不存在则继续
+  }
+
+  const graphsDir = api.pathJoin(projectDir, "graphs");
+  const project = {
+    id: folder,
+    title: name,
+    resolution: { width: 1280, height: 720 },
+    entry: { sceneId: "scene_001" },
+    scenes: [{ id: "scene_001", graph: "graphs/scene_001.graph.json" }]
+  };
+  const graph = {
+    sceneMeta: { entryNodeId: "n_start" },
+    nodes: [
+      { id: "n_start", type: "Start", data: {} },
+      { id: "n_end", type: "End", data: {} }
+    ],
+    edges: [
+      {
+        id: "e_n_start_n_end",
+        from: { nodeId: "n_start", portId: "out" },
+        to: { nodeId: "n_end", portId: "in" }
+      }
+    ]
+  };
+
+  try {
+    await api.ensureDir(graphsDir);
+    await api.writeJson(api.pathJoin(projectDir, "project.json"), project);
+    await api.writeJson(api.pathJoin(projectDir, "variables.json"), {});
+    await api.writeJson(api.pathJoin(graphsDir, "scene_001.graph.json"), graph);
+    closeProjectCreate();
+    await loadProject(projectDir);
+    setStatus(`已新建项目：${name}`);
+  } catch (e) {
+    setStatus(`新建项目失败：${e?.message ?? e}`, "error");
+  }
+}
+
 async function openProject() {
   const dir = await api.selectProjectDir();
   if (!dir) return;
@@ -2406,6 +2533,7 @@ async function chooseOutDir() {
 
 function disableActions() {
   const buttons = [
+    els.btnNewProject,
     els.btnOpen,
     els.btnToggleLeft,
     els.btnReload,
@@ -2431,6 +2559,9 @@ if (!api) {
   disableActions();
 } else {
   els.btnOpen.addEventListener("click", openProject);
+  if (els.btnNewProject) {
+    els.btnNewProject.addEventListener("click", openProjectCreate);
+  }
   els.btnToggleLeft.addEventListener("click", () => {
     if (!els.leftPanel) return;
     els.leftPanel.classList.toggle("open");
@@ -2489,6 +2620,25 @@ if (!api) {
         e.preventDefault();
         addEnumValue();
       }
+    });
+  }
+  if (els.btnChooseProjectDir) {
+    els.btnChooseProjectDir.addEventListener("click", chooseProjectDir);
+  }
+  if (els.btnProjectCreateOk) {
+    els.btnProjectCreateOk.addEventListener("click", confirmProjectCreate);
+  }
+  if (els.btnProjectCreateCancel) {
+    els.btnProjectCreateCancel.addEventListener("click", closeProjectCreate);
+  }
+  if (els.projectModalBackdrop) {
+    els.projectModalBackdrop.addEventListener("click", closeProjectCreate);
+  }
+  if (els.projectNameInput) {
+    els.projectNameInput.addEventListener("input", updateProjectPathHint);
+    els.projectNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") confirmProjectCreate();
+      if (e.key === "Escape") closeProjectCreate();
     });
   }
   if (els.btnAddVar) {
