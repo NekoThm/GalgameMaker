@@ -136,6 +136,13 @@ button:disabled {
   gap: 6px;
 }
 
+.scene-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
 .enum-editor {
   display: grid;
   gap: 8px;

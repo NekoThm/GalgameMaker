@@ -10,6 +10,8 @@ const els = {
   btnAddScene: document.getElementById("btnAddScene"),
   btnSceneCreateOk: document.getElementById("btnSceneCreateOk"),
   btnSceneCreateCancel: document.getElementById("btnSceneCreateCancel"),
+  btnSceneDeleteOk: document.getElementById("btnSceneDeleteOk"),
+  btnSceneDeleteCancel: document.getElementById("btnSceneDeleteCancel"),
   btnSave: document.getElementById("btnSave"),
   btnCompile: document.getElementById("btnCompile"),
   btnExport: document.getElementById("btnExport"),
@@ -45,6 +47,9 @@ const els = {
 els.sceneModal = document.getElementById("sceneModal");
 els.sceneModalBackdrop = document.querySelector("#sceneModal .modal-backdrop");
 els.sceneIdInput = document.getElementById("sceneIdInput");
+els.sceneDeleteModal = document.getElementById("sceneDeleteModal");
+els.sceneDeleteModalBackdrop = document.querySelector("#sceneDeleteModal .modal-backdrop");
+els.sceneDeleteName = document.getElementById("sceneDeleteName");
 els.projectModal = document.getElementById("projectModal");
 els.projectModalBackdrop = document.querySelector("#projectModal .modal-backdrop");
 els.projectNameInput = document.getElementById("projectNameInput");
@@ -80,6 +85,7 @@ const state = {
   connecting: null,
   enumDraft: [],
   editingVarName: null,
+  deleteSceneTarget: null,
   newProjectDir: null
 };
 
@@ -2284,10 +2290,18 @@ async function renderScenes(selectedSceneId = null) {
   els.sceneList.innerHTML = "";
   if (!state.project || !Array.isArray(state.project.scenes)) return;
   for (const scene of state.project.scenes) {
+    const row = document.createElement("div");
+    row.className = "scene-row";
     const btn = document.createElement("button");
     btn.textContent = `${scene.id ?? "scene"}  |  ${scene.graph ?? ""}`;
     btn.addEventListener("click", () => loadScene(scene));
-    els.sceneList.appendChild(btn);
+    const del = document.createElement("button");
+    del.className = "secondary";
+    del.textContent = "删除";
+    del.addEventListener("click", () => openSceneDelete(scene));
+    row.appendChild(btn);
+    row.appendChild(del);
+    els.sceneList.appendChild(row);
   }
   if (state.project.scenes.length > 0) {
     const target =
@@ -2322,6 +2336,57 @@ function closeSceneCreate() {
   if (!els.sceneModal || !els.sceneIdInput) return;
   els.sceneModal.hidden = true;
   els.sceneIdInput.value = "";
+}
+
+function openSceneDelete(scene) {
+  if (!state.project || !scene) return;
+  if (state.project.scenes.length <= 1) {
+    setStatus("至少保留一个场景", "warn");
+    return;
+  }
+  state.deleteSceneTarget = scene;
+  if (els.sceneDeleteName) {
+    els.sceneDeleteName.textContent = `将删除：${scene.id ?? "scene"}`;
+  }
+  if (els.sceneDeleteModal) els.sceneDeleteModal.hidden = false;
+}
+
+function closeSceneDelete() {
+  if (els.sceneDeleteModal) els.sceneDeleteModal.hidden = true;
+  state.deleteSceneTarget = null;
+}
+
+async function confirmSceneDelete() {
+  if (!state.projectDir || !state.project) return;
+  if (!state.deleteSceneTarget) return;
+  if (state.project.scenes.length <= 1) {
+    setStatus("至少保留一个场景", "warn");
+    closeSceneDelete();
+    return;
+  }
+  const scene = state.deleteSceneTarget;
+  const graphPath = api.pathJoin(state.projectDir, scene.graph);
+  const layoutRel = computeLayoutPath(scene.graph);
+  const layoutPath = api.pathJoin(state.projectDir, layoutRel);
+
+  try {
+    await api.removeFile(graphPath);
+    await api.removeFile(layoutPath);
+  } catch (e) {
+    setStatus(`删除文件失败：${e?.message ?? e}`, "error");
+    return;
+  }
+
+  state.project.scenes = state.project.scenes.filter((s) => s.id !== scene.id);
+  if (state.project.entry?.sceneId === scene.id) {
+    state.project.entry.sceneId = state.project.scenes[0]?.id ?? "";
+  }
+  const projectPath = api.pathJoin(state.projectDir, "project.json");
+  await api.writeJson(projectPath, state.project);
+
+  closeSceneDelete();
+  await renderScenes();
+  setStatus(`已删除场景：${scene.id}`);
 }
 
 async function confirmSceneCreate() {
@@ -2588,13 +2653,28 @@ if (!api) {
   if (els.btnSceneCreateCancel) {
     els.btnSceneCreateCancel.addEventListener("click", closeSceneCreate);
   }
+  if (els.btnSceneDeleteOk) {
+    els.btnSceneDeleteOk.addEventListener("click", confirmSceneDelete);
+  }
+  if (els.btnSceneDeleteCancel) {
+    els.btnSceneDeleteCancel.addEventListener("click", closeSceneDelete);
+  }
   if (els.sceneModalBackdrop) {
     els.sceneModalBackdrop.addEventListener("click", closeSceneCreate);
+  }
+  if (els.sceneDeleteModalBackdrop) {
+    els.sceneDeleteModalBackdrop.addEventListener("click", closeSceneDelete);
   }
   if (els.sceneIdInput) {
     els.sceneIdInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") confirmSceneCreate();
       if (e.key === "Escape") closeSceneCreate();
+    });
+  }
+  if (els.sceneDeleteModal) {
+    els.sceneDeleteModal.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") confirmSceneDelete();
+      if (e.key === "Escape") closeSceneDelete();
     });
   }
   els.btnSave.addEventListener("click", saveGraphAndLayout);

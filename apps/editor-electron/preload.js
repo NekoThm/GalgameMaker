@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import path from "node:path";
 import http from "node:http";
-import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat, mkdir, rm } from "node:fs/promises";
 import { existsSync, createReadStream, statSync } from "node:fs";
 import { exportWeb } from "../../packages/export-web/exporter.js";
 import { compileProjectFromDir } from "../../packages/core/src/project-compiler.js";
@@ -103,6 +103,10 @@ async function ensureDir(dirPath) {
   await mkdir(dirPath, { recursive: true });
 }
 
+async function removeFile(filePath) {
+  await rm(filePath, { force: true });
+}
+
 contextBridge.exposeInMainWorld("editorApi", {
   selectProjectDir: () => ipcRenderer.invoke("select-project"),
   selectOutputDir: (defaultPath) => ipcRenderer.invoke("select-output", defaultPath),
@@ -111,6 +115,7 @@ contextBridge.exposeInMainWorld("editorApi", {
   readJson,
   writeJson,
   ensureDir,
+  removeFile,
   readText: (filePath) => readFile(filePath, "utf-8"),
   stat: (filePath) => stat(filePath),
   compileProject: async (projectDir) => {

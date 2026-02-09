@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const path = require("node:path");
 const http = require("node:http");
-const { readFile, writeFile, stat, mkdir } = require("node:fs/promises");
+const { readFile, writeFile, stat, mkdir, rm } = require("node:fs/promises");
 const { existsSync, createReadStream, statSync } = require("node:fs");
 
 const servers = new Map();
@@ -120,6 +120,10 @@ async function ensureDir(dirPath) {
   await mkdir(dirPath, { recursive: true });
 }
 
+async function removeFile(filePath) {
+  await rm(filePath, { force: true });
+}
+
 contextBridge.exposeInMainWorld("editorApi", {
   selectProjectDir: () => ipcRenderer.invoke("select-project"),
   selectOutputDir: (defaultPath) => ipcRenderer.invoke("select-output", defaultPath),
@@ -128,6 +132,7 @@ contextBridge.exposeInMainWorld("editorApi", {
   readJson,
   writeJson,
   ensureDir,
+  removeFile,
   readText: (filePath) => readFile(filePath, "utf-8"),
   stat: (filePath) => stat(filePath),
   compileProject: async (projectDir) => {

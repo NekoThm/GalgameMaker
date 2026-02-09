@@ -69,11 +69,6 @@
       }
     },
     {
-      "id": "n_start",
-      "type": "Start",
-      "data": {}
-    },
-    {
       "id": "n_narration",
       "type": "Narration",
       "data": {
@@ -163,17 +158,6 @@
       },
       "data": {
         "text": "脸红小声：“……我叫顾辰，周杰伦很好听。”"
-      }
-    },
-    {
-      "id": "e_n_start_n_bg_room_1770202347256",
-      "from": {
-        "nodeId": "n_start",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_bg_room",
-        "portId": "in"
       }
     },
     {
