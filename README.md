@@ -1,4 +1,4 @@
-# Galgame Tooling（Editor + Player）
+# Galgame Maker
 
 面向非程序用户的 Galgame 制作工具：用**节点图**完成剧情与演出，并导出为可运行的 **Web 产物**，再通过 **Electron Player** 打包为桌面应用。
 
