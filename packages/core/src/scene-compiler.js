@@ -119,8 +119,10 @@ function nodeDataString(node, key) {
 /**
  * @param {{
  *   sceneId: string;
+ *   entrySceneId: string;
  *   graph: any;
  *   variables: any;
+ *   sceneIds: string[];
  * }} input
  * @returns {{
  *   sceneIR: { entryNodeId: string; nodes: Record<string, any> };
@@ -128,7 +130,7 @@ function nodeDataString(node, key) {
  *   referencedAssets: Set<string>;
  * }}
  */
-export function compileSceneGraph({ sceneId, graph, variables, sceneIds }) {
+export function compileSceneGraph({ sceneId, entrySceneId, graph, variables, sceneIds }) {
   const diagnostics = /** @type {Diagnostic[]} */ ([]);
   const referencedAssets = new Set();
 
@@ -172,21 +174,27 @@ export function compileSceneGraph({ sceneId, graph, variables, sceneIds }) {
     outgoingByNode.set(fromNodeId, list);
   }
 
-  const meta = isPlainObject(graph.sceneMeta) ? graph.sceneMeta : {};
-  let entryNodeId = requireString(meta.entryNodeId);
-  if (!entryNodeId) {
-    // 回退：找 Start 节点
-    for (const [id, node] of nodesById.entries()) {
-      if (requireString(node.type) === "Start") {
-        entryNodeId = id;
-        break;
-      }
-    }
+  const isEntryScene = sceneId && entrySceneId && sceneId === entrySceneId;
+  const startNodes = [];
+  for (const [id, node] of nodesById.entries()) {
+    if (requireString(node.type) === "Start") startNodes.push(id);
   }
-  if (!entryNodeId) {
-    push(diagnostics, "error", "SCENE_ENTRY_MISSING", "Scene entry node missing (sceneMeta.entryNodeId or Start node required)", { sceneId });
+
+  if (isEntryScene) {
+    if (startNodes.length === 0) {
+      push(diagnostics, "error", "SCENE_ENTRY_MISSING", "Entry scene must have exactly one Start node", { sceneId });
+      return { sceneIR: { entryNodeId: "", nodes: {} }, diagnostics, referencedAssets };
+    }
+    if (startNodes.length > 1) {
+      push(diagnostics, "error", "START_DUPLICATE", "Entry scene must have exactly one Start node", { sceneId });
+      return { sceneIR: { entryNodeId: "", nodes: {} }, diagnostics, referencedAssets };
+    }
+  } else if (startNodes.length > 0) {
+    push(diagnostics, "error", "START_NOT_ALLOWED", "Non-entry scene should not contain Start node", { sceneId });
     return { sceneIR: { entryNodeId: "", nodes: {} }, diagnostics, referencedAssets };
   }
+
+  const entryNodeId = isEntryScene ? startNodes[0] : "";
 
   /** @type {Map<string, string>} */
   const labelToNodeId = new Map();
@@ -347,6 +355,9 @@ export function compileSceneGraph({ sceneId, graph, variables, sceneIds }) {
         push(diagnostics, "error", "SCENE_SWITCH_NOT_FOUND", `Target scene not found: ${targetSceneId}`, { sceneId, nodeId: id });
       }
       const targetNodeId = nodeDataString(node, "nodeId");
+      if (!targetNodeId) {
+        push(diagnostics, "error", "SCENE_SWITCH_NODE_MISSING", "SwitchScene node requires data.nodeId", { sceneId, nodeId: id });
+      }
       const edges = outgoingByNode.get(id) ?? [];
       if (edges.length > 0) {
         push(diagnostics, "warning", "SCENE_SWITCH_OUT_IGNORED", "SwitchScene node ignores outgoing edges", {
@@ -424,39 +435,41 @@ export function compileSceneGraph({ sceneId, graph, variables, sceneIds }) {
     push(diagnostics, "error", "NODE_TYPE_UNKNOWN", `Unknown node type: ${type}`, { sceneId, nodeId: id });
   }
 
-  // Reachability（不可达作为 warning）
-  /** @type {Set<string>} */
-  const visited = new Set();
-  const stack = [entryNodeId];
-  while (stack.length) {
-    const current = stack.pop();
-    if (!current || visited.has(current)) continue;
-    visited.add(current);
-    const n = compiledNodes[current];
-    if (!n) continue;
-    if (n.op === "END") continue;
-    if (n.op === "CHOICE") {
-      for (const c of n.choices ?? []) stack.push(c.to);
-      continue;
+  // Reachability（仅入口场景做不可达检查）
+  if (isEntryScene) {
+    /** @type {Set<string>} */
+    const visited = new Set();
+    const stack = [entryNodeId];
+    while (stack.length) {
+      const current = stack.pop();
+      if (!current || visited.has(current)) continue;
+      visited.add(current);
+      const n = compiledNodes[current];
+      if (!n) continue;
+      if (n.op === "END") continue;
+      if (n.op === "CHOICE") {
+        for (const c of n.choices ?? []) stack.push(c.to);
+        continue;
+      }
+      if (n.op === "IF") {
+        stack.push(n.then);
+        stack.push(n.else);
+        continue;
+      }
+      if (n.op === "SCENE") {
+        continue;
+      }
+      if (n.op === "JUMP") {
+        stack.push(n.to);
+        continue;
+      }
+      if ("next" in n) stack.push(n.next);
     }
-    if (n.op === "IF") {
-      stack.push(n.then);
-      stack.push(n.else);
-      continue;
-    }
-    if (n.op === "SCENE") {
-      continue;
-    }
-    if (n.op === "JUMP") {
-      stack.push(n.to);
-      continue;
-    }
-    if ("next" in n) stack.push(n.next);
-  }
 
-  for (const nodeId of Object.keys(compiledNodes)) {
-    if (!visited.has(nodeId)) {
-      push(diagnostics, "warning", "NODE_UNREACHABLE", "Node is unreachable from entry", { sceneId, nodeId });
+    for (const nodeId of Object.keys(compiledNodes)) {
+      if (!visited.has(nodeId)) {
+        push(diagnostics, "warning", "NODE_UNREACHABLE", "Node is unreachable from entry", { sceneId, nodeId });
+      }
     }
   }
 

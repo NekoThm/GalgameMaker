@@ -1,7 +1,4 @@
 {
-  "sceneMeta": {
-    "entryNodeId": "n_bg_room"
-  },
   "nodes": [
     {
       "id": "n_bg_room",
@@ -80,7 +77,7 @@
       "type": "SwitchScene",
       "data": {
         "sceneId": "scene_002",
-        "nodeId": ""
+        "nodeId": "n_background"
       }
     },
     {
@@ -93,6 +90,11 @@
         "loop": true,
         "fadeMs": 0
       }
+    },
+    {
+      "id": "n_start",
+      "type": "Start",
+      "data": {}
     }
   ],
   "edges": [
@@ -223,6 +225,17 @@
       },
       "to": {
         "nodeId": "n_char_show",
+        "portId": "in"
+      }
+    },
+    {
+      "id": "e_n_start_out_1770803430110",
+      "from": {
+        "nodeId": "n_start",
+        "portId": "out"
+      },
+      "to": {
+        "nodeId": "n_bg_room",
         "portId": "in"
       }
     }

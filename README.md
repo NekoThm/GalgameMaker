@@ -117,7 +117,7 @@ Graph 需要保留“对编辑有用但运行无用”的信息：
 建议的最小字段集合（示意）：
 - `nodes[]`: `{ id, type, data, ports }`
 - `edges[]`: `{ id, from: {nodeId, portId}, to: {nodeId, portId} }`
-- `sceneMeta`: `{ entryNodeId }`
+- `sceneMeta`：保留字段（当前不再依赖 `entryNodeId`）
 
 ### 5.2 IR（运行态）
 IR 只保留“运行需要的最小信息”，结构确定、可校验、可解释：
@@ -176,7 +176,7 @@ IR 指令建议保持“有限集合”（KISS），示例：
 
 ### 7.1 推荐节点（MVP）
 叙事类：
-- `Start`：场景入口
+- `Start`：全局入口（仅入口场景允许）
 - `Dialogue`：对白（角色名、文本、语音可选）
 - `Narration`：旁白
 - `Choice`：选项（多出口）

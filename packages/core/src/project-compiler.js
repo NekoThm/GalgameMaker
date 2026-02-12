@@ -139,6 +139,7 @@ export async function compileProjectFromDir(projectDir) {
     const graph = await readJsonFile(graphPath);
     const { sceneIR, diagnostics: sceneDiagnostics, referencedAssets } = compileSceneGraph({
       sceneId,
+      entrySceneId,
       graph,
       variables,
       sceneIds

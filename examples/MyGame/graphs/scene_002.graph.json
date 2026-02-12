@@ -1,13 +1,5 @@
 {
-  "sceneMeta": {
-    "entryNodeId": "n_start"
-  },
   "nodes": [
-    {
-      "id": "n_start",
-      "type": "Start",
-      "data": {}
-    },
     {
       "id": "n_dialogue",
       "type": "Dialogue",
@@ -166,17 +158,6 @@
     }
   ],
   "edges": [
-    {
-      "id": "e_n_start_out_1770205678196",
-      "from": {
-        "nodeId": "n_start",
-        "portId": "out"
-      },
-      "to": {
-        "nodeId": "n_background",
-        "portId": "in"
-      }
-    },
     {
       "id": "e_n_narration_out_1770205685047",
       "from": {

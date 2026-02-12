@@ -586,8 +586,9 @@ class Game {
         const targetSceneId = node.sceneId;
         const targetScene = this.ir.scenes[targetSceneId];
         if (!targetScene) throw new Error(`Scene not found: ${targetSceneId}`);
-        const targetNodeId =
-          node.nodeId && targetScene.nodes?.[node.nodeId] ? node.nodeId : targetScene.entryNodeId;
+        if (!node.nodeId) throw new Error("SwitchScene target nodeId missing");
+        const targetNodeId = targetScene.nodes?.[node.nodeId] ? node.nodeId : null;
+        if (!targetNodeId) throw new Error(`SwitchScene target node not found: ${node.nodeId}`);
         this.state.sceneId = targetSceneId;
         this.state.nodeId = targetNodeId;
         this.renderStatus();

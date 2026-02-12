@@ -242,10 +242,13 @@ function getNodeById(nodeId) {
 
 function getEntryNodeId() {
   if (!state.graph) return null;
-  const metaId = state.graph.sceneMeta?.entryNodeId;
-  if (metaId && getNodeById(metaId)) return metaId;
-  const start = state.graph.nodes.find((n) => n.type === "Start");
-  return start?.id ?? state.graph.nodes[0]?.id ?? null;
+  const entrySceneId = state.project?.entry?.sceneId;
+  const isEntryScene = entrySceneId && state.currentScene?.id === entrySceneId;
+  if (isEntryScene) {
+    const start = state.graph.nodes.find((n) => n.type === "Start");
+    return start?.id ?? state.graph.nodes[0]?.id ?? null;
+  }
+  return state.graph.nodes[0]?.id ?? null;
 }
 
 function getLayoutNode(nodeId) {
@@ -378,6 +381,19 @@ function cloneNodeData(data) {
 
 function addNodeAt(type, position) {
   if (!state.graph || !state.layout) return;
+  if (type === "Start") {
+    const entrySceneId = state.project?.entry?.sceneId;
+    const isEntryScene = entrySceneId && state.currentScene?.id === entrySceneId;
+    if (!isEntryScene) {
+      setStatus("仅入口场景允许创建 Start 节点", "warn");
+      return;
+    }
+    const hasStart = state.graph.nodes.some((n) => n.type === "Start");
+    if (hasStart) {
+      setStatus("入口场景只能有一个 Start 节点", "warn");
+      return;
+    }
+  }
   const nodeId = generateNodeId(type);
   const node = {
     id: nodeId,
@@ -386,15 +402,10 @@ function addNodeAt(type, position) {
   };
   if (!Array.isArray(state.graph.nodes)) state.graph.nodes = [];
   if (!Array.isArray(state.graph.edges)) state.graph.edges = [];
-  if (!state.graph.sceneMeta) state.graph.sceneMeta = {};
   if (!state.layout.nodes) state.layout.nodes = {};
 
   state.graph.nodes.push(node);
   state.layout.nodes[nodeId] = { x: position.x, y: position.y };
-
-  if (!state.graph.sceneMeta.entryNodeId && type === "Start") {
-    state.graph.sceneMeta.entryNodeId = nodeId;
-  }
 
   state.dirtyGraph = true;
   state.dirtyLayout = true;
@@ -408,6 +419,16 @@ function duplicateNode(nodeId) {
   if (!state.graph || !state.layout || !nodeId) return;
   const source = getNodeById(nodeId);
   if (!source) return;
+  if (source.type === "Start") {
+    const entrySceneId = state.project?.entry?.sceneId;
+    const isEntryScene = entrySceneId && state.currentScene?.id === entrySceneId;
+    if (!isEntryScene) {
+      setStatus("仅入口场景允许创建 Start 节点", "warn");
+      return;
+    }
+    setStatus("入口场景只能有一个 Start 节点", "warn");
+    return;
+  }
   const newId = generateNodeId(source.type ?? "Node");
   const node = {
     id: newId,
@@ -431,13 +452,20 @@ function deleteNode(nodeId) {
   const node = getNodeById(nodeId);
   if (!node) return;
 
+  if (node.type === "Start") {
+    const entrySceneId = state.project?.entry?.sceneId;
+    if (entrySceneId && state.currentScene?.id === entrySceneId) {
+      const startCount = state.graph.nodes.filter((n) => n.type === "Start").length;
+      if (startCount <= 1) {
+        setStatus("入口场景必须保留唯一 Start 节点", "warn");
+        return;
+      }
+    }
+  }
+
   state.graph.nodes = state.graph.nodes.filter((n) => n.id !== nodeId);
   state.graph.edges = (state.graph.edges ?? []).filter((e) => e.from?.nodeId !== nodeId && e.to?.nodeId !== nodeId);
   if (state.layout.nodes && state.layout.nodes[nodeId]) delete state.layout.nodes[nodeId];
-
-  if (state.graph.sceneMeta?.entryNodeId === nodeId) {
-    state.graph.sceneMeta.entryNodeId = state.graph.nodes[0]?.id ?? "";
-  }
 
   state.selectedNodeId = null;
   state.dirtyGraph = true;
@@ -1949,7 +1977,6 @@ async function confirmProjectCreate() {
     scenes: [{ id: "scene_001", graph: "graphs/scene_001.graph.json" }]
   };
   const graph = {
-    sceneMeta: { entryNodeId: "n_start" },
     nodes: [
       { id: "n_start", type: "Start", data: {} },
       { id: "n_end", type: "End", data: {} }
@@ -2421,18 +2448,17 @@ async function confirmSceneCreate() {
     // 不存在则继续
   }
 
-  const startId = "n_start";
+  const dlgId = "n_dialogue";
   const endId = "n_end";
   const graph = {
-    sceneMeta: { entryNodeId: startId },
     nodes: [
-      { id: startId, type: "Start", data: {} },
+      { id: dlgId, type: "Dialogue", data: { speaker: "", text: "" } },
       { id: endId, type: "End", data: {} }
     ],
     edges: [
       {
-        id: `e_${startId}_${endId}`,
-        from: { nodeId: startId, portId: "out" },
+        id: `e_${dlgId}_${endId}`,
+        from: { nodeId: dlgId, portId: "out" },
         to: { nodeId: endId, portId: "in" }
       }
     ]
